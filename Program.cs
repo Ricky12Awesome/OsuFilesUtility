@@ -20,60 +20,6 @@ using Realms;
 namespace OsuLazerFilesSymlinker;
 
 [Preserve(AllMembers = true)]
-public class BeatmapSet : RealmObject
-{
-    [PrimaryKey] public Guid ID { get; private set; }
-    [Indexed] public long OnlineID { get; private set; }
-    public IList<RealmNamedFileUsage> Files { get; } = null!;
-    public IList<Beatmap> Beatmaps { get; } = null!;
-}
-
-[Preserve(AllMembers = true)]
-public class BeatmapMetadata : RealmObject
-{
-    public string Title { get; private set; } = null!;
-    public string TitleUnicode { get; private set; } = null!;
-    public string Artist { get; private set; } = null!;
-    public string ArtistUnicode { get; private set; } = null!;
-    public string Source { get; private set; } = null!;
-    public string AudioFile { get; private set; } = null!;
-    public string BackgroundFile { get; private set; } = null!;
-}
-
-[Preserve(AllMembers = true)]
-public class Beatmap : RealmObject
-{
-    [PrimaryKey] public Guid ID { get; private set; }
-    [Indexed] public string MD5Hash { get; private set; } = null!;
-    [Indexed] public long OnlineID { get; private set; }
-
-    public BeatmapMetadata Metadata { get; private set; } = null!;
-    public BeatmapSet BeatmapSet { get; private set; } = null!;
-}
-
-[Preserve(AllMembers = true)]
-public class RealmNamedFileUsage : EmbeddedObject
-{
-    public File File { get; private set; } = null!;
-    public string Filename { get; private set; } = null!;
-}
-
-[Preserve(AllMembers = true)]
-public class File : RealmObject
-{
-    [PrimaryKey] public string Hash { get; private set; } = null!;
-
-    [Ignored] public string Path => System.IO.Path.Join(Hash[..1], Hash[..2], Hash);
-}
-
-[Preserve(AllMembers = true)]
-public record FileOutput
-{
-    public required string Filename { get; init; }
-    public required string Path { get; init; }
-}
-
-[Preserve(AllMembers = true)]
 public class Api
 {
     public Realm Realm { get; private set; }
@@ -94,14 +40,7 @@ public class Api
         {
             SchemaVersion = 51,
             IsReadOnly = true,
-            Schema = new[]
-            {
-                typeof(File),
-                typeof(Beatmap),
-                typeof(BeatmapSet),
-                typeof(BeatmapMetadata),
-                typeof(RealmNamedFileUsage),
-            }
+            Schema = RealmSchema.Types
         };
 
         Realm = Realm.GetInstance(config);
