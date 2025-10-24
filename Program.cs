@@ -74,10 +74,10 @@ public record FileOutput
 }
 
 [Preserve(AllMembers = true)]
-class Api
+public class Api
 {
-    public Realm Realm { get; private set; } = null!;
-    public string LazerPath { get; private set; } = null!;
+    public Realm Realm { get; private set; }
+    public string LazerPath { get; private set; }
     public bool Verbose { get; private set; }
 
     public Api(string? _lazerPath, bool verbose)
@@ -153,8 +153,6 @@ class Api
 
     public void ValidatePaths(string outPath)
     {
-        Console.WriteLine("Validating paths, this can take a while...");
-
         var files = Directory.EnumerateFiles(outPath, "*", SearchOption.AllDirectories);
 
         foreach (var file in files)
@@ -163,7 +161,7 @@ class Api
 
             if (info is not null && !info.Exists)
             {
-                Console.WriteLine($"Removing {file}");
+                // todo: add logging here for removed
                 System.IO.File.Delete(file);
             }
         }
@@ -174,25 +172,20 @@ class Api
         {
             if (!Directory.EnumerateFileSystemEntries(dir).Any())
             {
-                Console.WriteLine($"Removing {dir}");
+                // todo: add logging here for removed
                 Directory.Delete(dir);
             }
         }
-
-        Console.WriteLine("Validated paths");
     }
 
     public void CreateLinksAll(string outPath, bool isCopy = false)
     {
-        Console.WriteLine("Creating links...");
         var beatmaps = Realm.All<Beatmap>();
 
         foreach (var beatmap in beatmaps)
         {
             CreateLinks(beatmap, outPath, isCopy);
         }
-
-        Console.WriteLine("Done.");
     }
 
     public void CreateLinks(BeatmapSet set, string outPath, bool isCopy = false)
@@ -214,7 +207,8 @@ class Api
 
             if (Verbose)
             {
-                Console.WriteLine($"{src} -> {dirname}/{f.Filename}");
+                // todo: add logging here
+                // Console.WriteLine($"{src} -> {dirname}/{f.Filename}");
             }
 
             Directory.CreateDirectory(Directory.GetParent(dst)!.FullName);
@@ -251,7 +245,8 @@ class Api
 
             if (Verbose)
             {
-                Console.WriteLine($"{src} -> {dirname}/{f.Filename}");
+                // todo: add logging here
+                // Console.WriteLine($"{src} -> {dirname}/{f.Filename}");
             }
 
             Directory.CreateDirectory(Directory.GetParent(dst)!.FullName);
@@ -263,6 +258,126 @@ class Api
             }
 
             System.IO.File.CreateSymbolicLink(dst, src);
+        }
+    }
+
+    public string ExportToJson(bool pretty)
+    {
+        var sets = Realm.All<BeatmapSet>();
+        var root = new JsonObject();
+        var beatmapSetsRoot = new JsonArray();
+
+        foreach (var set in sets)
+        {
+            var beatmapSetRoot = new JsonObject();
+            var beatmapsRoot = new JsonArray();
+            var filesRoot = new JsonObject();
+
+            foreach (var file in set.Files)
+            {
+                filesRoot[file.Filename] = file.File.Hash;
+            }
+
+            beatmapSetRoot.Add("OnlineID", set.OnlineID);
+            beatmapSetRoot.Add("Files", filesRoot);
+
+            foreach (var beatmap in set.Beatmaps)
+            {
+                var beatmapRoot = new JsonObject
+                {
+                    ["MD5Hash"] = beatmap.MD5Hash,
+                    ["OnlineID"] = beatmap.OnlineID,
+                    ["Title"] = beatmap.Metadata.Title,
+                    ["TitleUnicode"] = beatmap.Metadata.TitleUnicode != string.Empty
+                        ? beatmap.Metadata.TitleUnicode
+                        : null,
+                    ["Artist"] = beatmap.Metadata.Artist,
+                    ["ArtistUnicode"] = beatmap.Metadata.ArtistUnicode != string.Empty
+                        ? beatmap.Metadata.ArtistUnicode
+                        : null,
+                    ["Source"] = beatmap.Metadata.Source != string.Empty ? beatmap.Metadata.Source : null,
+                    ["AudioFile"] = beatmap.Metadata.AudioFile,
+                    ["BackgroundFile"] = beatmap.Metadata.BackgroundFile != string.Empty
+                        ? beatmap.Metadata.BackgroundFile
+                        : null
+                };
+
+                beatmapsRoot.Add(beatmapRoot);
+            }
+
+            beatmapSetRoot.Add("Beatmaps", beatmapsRoot);
+            beatmapSetsRoot.Add(beatmapSetRoot);
+        }
+
+        root.Add("BeatmapSets", beatmapSetsRoot);
+
+        var json = root.ToJsonString(new JsonSerializerOptions
+        {
+            WriteIndented = pretty,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        });
+
+        return json;
+    }
+
+    private static void WriteString(BinaryWriter writer, string value, bool mode)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+
+        if (mode)
+        {
+            if (bytes.Length >= byte.MaxValue)
+            {
+                throw new OverflowException("String too long, use Binary2 instead");
+            }
+
+            writer.Write((byte)bytes.Length);
+        }
+        else
+        {
+            writer.Write((uint)bytes.Length);
+        }
+
+        writer.Write(bytes);
+    }
+
+    private static void WriteHash(BinaryWriter writer, string value)
+    {
+        var bytes = Convert.FromHexString(value);
+        writer.Write(bytes);
+    }
+
+    public void ExportToBinary(BinaryWriter writer, bool mode)
+    {
+        var sets = Realm.All<BeatmapSet>().ToList();
+
+        writer.Write((bool)mode);
+
+        writer.Write((uint)sets.Count);
+        foreach (var set in sets)
+        {
+            writer.Write((long)set.OnlineID);
+
+            writer.Write((uint)set.Files.Count);
+            foreach (var file in set.Files)
+            {
+                WriteString(writer, file.Filename, mode);
+                WriteHash(writer, file.File.Hash);
+            }
+
+            writer.Write((uint)set.Beatmaps.Count);
+            foreach (var beatmap in set.Beatmaps)
+            {
+                WriteHash(writer, beatmap.MD5Hash);
+                writer.Write((long)beatmap.OnlineID);
+                WriteString(writer, beatmap.Metadata.Title, mode);
+                WriteString(writer, beatmap.Metadata.TitleUnicode, mode);
+                WriteString(writer, beatmap.Metadata.Artist, mode);
+                WriteString(writer, beatmap.Metadata.ArtistUnicode, mode);
+                WriteString(writer, beatmap.Metadata.Source, mode);
+                WriteString(writer, beatmap.Metadata.AudioFile, mode);
+                WriteString(writer, beatmap.Metadata.BackgroundFile, mode);
+            }
         }
     }
 }
@@ -317,59 +432,7 @@ internal static class Program
 
     private static void ExportJson(this Api api, string? outPath, bool pretty)
     {
-        var sets = api.Realm.All<BeatmapSet>();
-        var root = new JsonObject();
-        var beatmapSetsRoot = new JsonArray();
-
-        foreach (var set in sets)
-        {
-            var beatmapSetRoot = new JsonObject();
-            var beatmapsRoot = new JsonArray();
-            var filesRoot = new JsonObject();
-
-            foreach (var file in set.Files)
-            {
-                filesRoot[file.Filename] = file.File.Hash;
-            }
-
-            beatmapSetRoot.Add("OnlineID", set.OnlineID);
-            beatmapSetRoot.Add("Files", filesRoot);
-
-            foreach (var beatmap in set.Beatmaps)
-            {
-                var beatmapRoot = new JsonObject
-                {
-                    ["MD5Hash"] = beatmap.MD5Hash,
-                    ["OnlineID"] = beatmap.OnlineID,
-                    ["Title"] = beatmap.Metadata.Title,
-                    ["TitleUnicode"] = beatmap.Metadata.TitleUnicode != string.Empty
-                        ? beatmap.Metadata.TitleUnicode
-                        : null,
-                    ["Artist"] = beatmap.Metadata.Artist,
-                    ["ArtistUnicode"] = beatmap.Metadata.ArtistUnicode != string.Empty
-                        ? beatmap.Metadata.ArtistUnicode
-                        : null,
-                    ["Source"] = beatmap.Metadata.Source != string.Empty ? beatmap.Metadata.Source : null,
-                    ["AudioFile"] = beatmap.Metadata.AudioFile,
-                    ["BackgroundFile"] = beatmap.Metadata.BackgroundFile != string.Empty
-                        ? beatmap.Metadata.BackgroundFile
-                        : null
-                };
-
-                beatmapsRoot.Add(beatmapRoot);
-            }
-
-            beatmapSetRoot.Add("Beatmaps", beatmapsRoot);
-            beatmapSetsRoot.Add(beatmapSetRoot);
-        }
-
-        root.Add("BeatmapSets", beatmapSetsRoot);
-
-        var json = root.ToJsonString(new JsonSerializerOptions
-        {
-            WriteIndented = pretty,
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        });
+        var json = api.ExportToJson(pretty);
 
         if (outPath is not null)
         {
@@ -386,69 +449,15 @@ internal static class Program
         }
     }
 
-    private static void WriteString(this BinaryWriter writer, string value, bool mode)
-    {
-        var bytes = Encoding.UTF8.GetBytes(value);
-
-        if (mode)
-        {
-            if (bytes.Length >= byte.MaxValue)
-            {
-                throw new OverflowException("String too long, use Binary2 instead");
-            }
-
-            writer.Write((byte)bytes.Length);
-        }
-        else
-        {
-            writer.Write((uint)bytes.Length);
-        }
-
-        writer.Write(bytes);
-    }
-
-    private static void WriteHash(this BinaryWriter writer, string value)
-    {
-        var bytes = Convert.FromHexString(value);
-        writer.Write(bytes);
-    }
-
     private static void ExportBinary(this Api api, string? outPath, bool mode)
     {
-        var sets = api.Realm.All<BeatmapSet>().ToList();
         var stream = outPath is not null
             ? new FileStream(outPath, FileMode.OpenOrCreate)
             : Console.OpenStandardOutput();
 
         var writer = new BinaryWriter(stream);
 
-        writer.Write(mode);
-        writer.Write((uint)sets.Count);
-        foreach (var set in sets)
-        {
-            writer.Write(set.OnlineID);
-            writer.Write((uint)set.Files.Count);
-
-            foreach (var file in set.Files)
-            {
-                writer.WriteString(file.Filename, mode);
-                writer.WriteHash(file.File.Hash);
-            }
-
-            writer.Write((uint)set.Beatmaps.Count);
-            foreach (var beatmap in set.Beatmaps)
-            {
-                writer.WriteHash(beatmap.MD5Hash);
-                writer.Write(beatmap.OnlineID);
-                writer.WriteString(beatmap.Metadata.Title, mode);
-                writer.WriteString(beatmap.Metadata.TitleUnicode, mode);
-                writer.WriteString(beatmap.Metadata.Artist, mode);
-                writer.WriteString(beatmap.Metadata.ArtistUnicode, mode);
-                writer.WriteString(beatmap.Metadata.Source, mode);
-                writer.WriteString(beatmap.Metadata.AudioFile, mode);
-                writer.WriteString(beatmap.Metadata.BackgroundFile, mode);
-            }
-        }
+        api.ExportToBinary(writer, mode);
 
         writer.Flush();
         writer.Close();
@@ -497,6 +506,7 @@ internal static class Program
 
             api.CreateLinks(set, outPath, isCopy);
         }
+
         Console.WriteLine("Done.");
     }
 
@@ -533,7 +543,9 @@ internal static class Program
 
         if (args.Validate)
         {
+            Console.WriteLine("Validating paths, this can take a while...");
             api.ValidatePaths(args.OutPath);
+            Console.WriteLine("Validated paths");
 
             if (args.CannotContinue())
             {
@@ -550,7 +562,9 @@ internal static class Program
 
         if (args.All)
         {
+            Console.WriteLine("Creating links...");
             api.CreateLinksAll(args.OutPath, args.IsCopy);
+            Console.WriteLine("Done.");
 
             return;
         }
