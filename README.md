@@ -195,3 +195,16 @@ edit `OsuSongsDir` in `settings/default.json` in danser directory
   // ...
 }
 ```
+
+## TODO
+- Rename Project since "symlinker" doesn't fit this project anymore
+    - Potential Names:
+      - OsuLazerFiles (olf)
+      - OsuFilesManager (ofm)
+      - OsuLazerFilesManager (olfm)
+- Logging
+- Installer for each platform
+- Support other data then just beatmaps/sets
+- Separate API to its own library
+- GUI version
+- Documentation
