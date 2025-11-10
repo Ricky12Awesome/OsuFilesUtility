@@ -1,4 +1,7 @@
+using System.Text.Json.Nodes;
 using Realms;
+
+// ReSharper disable RedundantCast
 
 // ReSharper disable ReplaceAutoPropertyWithComputedProperty
 // ReSharper disable InconsistentNaming
@@ -49,14 +52,14 @@ public class Beatmap : RealmObject
     public double StarRating { get; private set; } = 0;
     [Indexed] public string MD5Hash { get; private set; } = null!;
     public string OnlineMD5Hash { get; private set; } = null!;
-    public DateTimeOffset LastLocalUpdate { get; private set; } = DateTimeOffset.MinValue;
-    public DateTimeOffset LastOnlineUpdate { get; private set; } = DateTimeOffset.MinValue;
+    public DateTimeOffset? LastLocalUpdate { get; private set; } = null;
+    public DateTimeOffset? LastOnlineUpdate { get; private set; } = null;
     public bool Hidden { get; private set; } = false;
     public long EndTimeObjectCount { get; private set; } = 0;
     public long TotalObjectCount { get; private set; } = 0;
-    public DateTimeOffset LastPlayed { get; private set; } = DateTimeOffset.MinValue;
+    public DateTimeOffset? LastPlayed { get; private set; } = null;
     public long BeatDivisor { get; private set; } = 0;
-    public double EditorTimestamp { get; private set; } = 0;
+    public double? EditorTimestamp { get; private set; } = null;
 }
 
 [Preserve(AllMembers = true)]
@@ -114,7 +117,6 @@ public class BeatmapUserSettings : EmbeddedObject
 public class File : RealmObject
 {
     [PrimaryKey] public string Hash { get; private set; } = null!;
-
     [Ignored] public string Path => System.IO.Path.Join(Hash[..1], Hash[..2], Hash);
 }
 
@@ -123,7 +125,7 @@ public class KeyBinding : RealmObject
 {
     [PrimaryKey] public Guid ID { get; private set; }
     public string RulesetName { get; private set; } = null!;
-    public long Variant { get; private set; } = 0;
+    public long? Variant { get; private set; } = null;
     public long Action { get; private set; } = 0;
     public string KeyCombination { get; private set; } = null!;
 }
@@ -151,7 +153,7 @@ public class RealmUser : RealmObject
 {
     [Indexed] public long OnlineID { get; private set; }
     public string Username { get; private set; } = null!;
-    public string CountryCOde { get; private set; } = null!;
+    public string? CountryCode { get; private set; } = null;
 }
 
 [Preserve(AllMembers = true)]
@@ -170,15 +172,15 @@ public class RulesetSetting : RealmObject
 {
     [Indexed] public string RulesetName { get; private set; } = null!;
     [Indexed] public long Variant { get; private set; } = 0;
-    public string Key { get; private set; } = null!;
-    public string Value { get; private set; } = null!;
+    [Required] public string Key { get; private set; } = null!;
+    [Required] public string Value { get; private set; } = null!;
 }
 
 [Preserve(AllMembers = true)]
 public class Score : RealmObject
 {
     [PrimaryKey] public Guid ID { get; private set; }
-    public Beatmap BeatmapInfo { get; private set; } = null!;
+    public Beatmap? BeatmapInfo { get; private set; } = null;
     public string ClientVersion { get; private set; } = null!;
     public string BeatmapHash { get; private set; } = null!;
     public Ruleset Ruleset { get; private set; } = null!;
@@ -188,12 +190,12 @@ public class Score : RealmObject
     public long TotalScore { get; private set; } = 0;
     public long TotalScoreWithoutMods { get; private set; } = 0;
     public long TotalScoreVersion { get; private set; } = 0;
-    public long LegacyTotalScore { get; private set; } = 0;
+    public long? LegacyTotalScore { get; private set; } = null;
     public bool BackgroundReprocessingFailed { get; private set; } = false;
     public long MaxCombo { get; private set; } = 0;
     public double Accuracy { get; private set; } = 0;
     public DateTimeOffset Date { get; private set; } = DateTimeOffset.MinValue;
-    public double PP { get; private set; } = 0;
+    public double? PP { get; private set; } = null;
     [Indexed] public long OnlineID { get; private set; } = 0;
     [Indexed] public long LegacyOnlineID { get; private set; } = 0;
     public RealmUser User { get; private set; } = null!;

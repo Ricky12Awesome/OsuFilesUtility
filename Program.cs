@@ -1,5 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using System.Collections.Immutable;
 using System.CommandLine;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -7,6 +8,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Realms;
+
+// ReSharper disable RedundantCast
 
 // ReSharper disable InvertIf
 // ReSharper disable ConvertIfStatementToReturnStatement
@@ -18,6 +21,38 @@ using Realms;
 // ReSharper disable ReplaceAutoPropertyWithComputedProperty
 
 namespace OsuLazerFilesSymlinker;
+
+public static class Extensions
+{
+    public static string? NullIfEmpty(this string? str)
+    {
+        return str != string.Empty ? str : null;
+    }
+
+    public static void AddIfNotNull(this JsonObject obj, string name, string? child)
+    {
+        if (child is not null)
+        {
+            obj.Add(name, child.NullIfEmpty());
+        }
+    }
+
+    public static void AddIfNotNull(this JsonObject obj, string name, JsonNode? child)
+    {
+        if (child is not null)
+        {
+            obj.Add(name, child);
+        }
+    }
+
+    public static void AddIfNotNull(this JsonArray obj, JsonNode? child)
+    {
+        if (child is not null)
+        {
+            obj.Add(child);
+        }
+    }
+}
 
 [Preserve(AllMembers = true)]
 public class Api
@@ -76,7 +111,7 @@ public class Api
     }
 
     // https://osu.ppy.sh/wiki/en/Client/File_formats/osr_%28file_format%29
-    public string GetMD5HashFromReplay(string? path)
+    public static string GetMD5HashFromReplay(string? path)
     {
         if (!Path.Exists(path)) throw new FileLoadException("Path to replay file not found");
 
@@ -90,7 +125,7 @@ public class Api
         return Encoding.UTF8.GetString(buf[7..]);
     }
 
-    public void ValidatePaths(string outPath)
+    public static void ValidatePaths(string outPath)
     {
         var files = Directory.EnumerateFiles(outPath, "*", SearchOption.AllDirectories);
 
@@ -200,55 +235,244 @@ public class Api
         }
     }
 
+
     public string ExportToJson(bool pretty)
     {
-        var sets = Realm.All<BeatmapSet>();
         var root = new JsonObject();
-        var beatmapSetsRoot = new JsonArray();
+        var usersRoot = new JsonObject();
+        var rulesetsRoot = new JsonObject();
+        var beatmapsRoot = new JsonObject();
+        var beatmapSetsRoot = new JsonObject();
+        var collectionsRoot = new JsonArray();
+        var scoresRoot = new JsonArray();
+        var skinsRoot = new JsonArray();
 
-        foreach (var set in sets)
+        var users = Realm.All<RealmUser>()
+            .AsEnumerable()
+            .DistinctBy(item => item.OnlineID) // idky there is duplicate users, so I have to have this
+            .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+
+        var rulesets = Realm.All<Ruleset>()
+            .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+
+        var beatmaps = Realm.All<Beatmap>()
+            .ToImmutableSortedDictionary(key => key.MD5Hash, value => value);
+
+        var beatmapsets = Realm.All<BeatmapSet>()
+            .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+
+        var collections = Realm.All<BeatmapCollection>().ToImmutableList();
+        var scores = Realm.All<Score>().ToImmutableList();
+        var skins = Realm.All<Skin>().ToImmutableList();
+
+        foreach (var (id, user) in users)
         {
-            var beatmapSetRoot = new JsonObject();
-            var beatmapsRoot = new JsonArray();
-            var filesRoot = new JsonObject();
+            var userRoot = new JsonObject();
 
-            foreach (var file in set.Files)
-            {
-                filesRoot[file.Filename] = file.File.Hash;
-            }
+            userRoot.AddIfNotNull("OnlineID", user.OnlineID);
+            userRoot.AddIfNotNull("Username", user.Username);
+            userRoot.AddIfNotNull("CountryCode", user.CountryCode);
 
-            beatmapSetRoot.Add("OnlineID", set.OnlineID);
-            beatmapSetRoot.Add("Files", filesRoot);
-
-            foreach (var beatmap in set.Beatmaps)
-            {
-                var beatmapRoot = new JsonObject
-                {
-                    ["MD5Hash"] = beatmap.MD5Hash,
-                    ["OnlineID"] = beatmap.OnlineID,
-                    ["Title"] = beatmap.Metadata.Title,
-                    ["TitleUnicode"] = beatmap.Metadata.TitleUnicode != string.Empty
-                        ? beatmap.Metadata.TitleUnicode
-                        : null,
-                    ["Artist"] = beatmap.Metadata.Artist,
-                    ["ArtistUnicode"] = beatmap.Metadata.ArtistUnicode != string.Empty
-                        ? beatmap.Metadata.ArtistUnicode
-                        : null,
-                    ["Source"] = beatmap.Metadata.Source != string.Empty ? beatmap.Metadata.Source : null,
-                    ["AudioFile"] = beatmap.Metadata.AudioFile,
-                    ["BackgroundFile"] = beatmap.Metadata.BackgroundFile != string.Empty
-                        ? beatmap.Metadata.BackgroundFile
-                        : null
-                };
-
-                beatmapsRoot.Add(beatmapRoot);
-            }
-
-            beatmapSetRoot.Add("Beatmaps", beatmapsRoot);
-            beatmapSetsRoot.Add(beatmapSetRoot);
+            usersRoot.Add($"{id}", userRoot);
         }
 
+        foreach (var (id, ruleset) in rulesets)
+        {
+            var rulesetRoot = new JsonObject();
+
+            rulesetRoot.AddIfNotNull("ShortName", ruleset.ShortName);
+            rulesetRoot.AddIfNotNull("OnlineID", ruleset.OnlineID);
+            rulesetRoot.AddIfNotNull("Name", ruleset.Name);
+            rulesetRoot.AddIfNotNull("InstantiationInfo", ruleset.InstantiationInfo);
+            rulesetRoot.AddIfNotNull("LastAppliedDifficultyVersion", ruleset.LastAppliedDifficultyVersion);
+            rulesetRoot.AddIfNotNull("Available", ruleset.Available);
+
+            rulesetsRoot.Add($"{id}", rulesetRoot);
+        }
+
+        foreach (var (md5, beatmap) in beatmaps)
+        {
+            var beatmapRoot = new JsonObject();
+            var metadataRoot = new JsonObject();
+
+            metadataRoot.AddIfNotNull("Title", beatmap.Metadata.Title);
+            metadataRoot.AddIfNotNull("TitleUnicode", beatmap.Metadata.TitleUnicode);
+            metadataRoot.AddIfNotNull("Artist", beatmap.Metadata.Artist);
+            metadataRoot.AddIfNotNull("ArtistUnicode", beatmap.Metadata.ArtistUnicode);
+            metadataRoot.AddIfNotNull("Author", beatmap.Metadata.Author.OnlineID);
+            metadataRoot.AddIfNotNull("Source", beatmap.Metadata.Source);
+            metadataRoot.AddIfNotNull("Tags", beatmap.Metadata.Tags);
+            metadataRoot.AddIfNotNull("PreviewTime", beatmap.Metadata.PreviewTime);
+            metadataRoot.AddIfNotNull("AudioFile", beatmap.Metadata.AudioFile);
+            metadataRoot.AddIfNotNull("BackgroundFile", beatmap.Metadata.BackgroundFile);
+
+            var userTags = new JsonArray();
+            foreach (var tag in beatmap.Metadata.UserTags)
+            {
+                userTags.Add(tag);
+            }
+
+            metadataRoot.AddIfNotNull("UserTags", userTags);
+
+            beatmapRoot.AddIfNotNull("DifficultyName", beatmap.DifficultyName);
+            beatmapRoot.AddIfNotNull("Ruleset", beatmap.Ruleset.OnlineID);
+            beatmapRoot.AddIfNotNull("Difficulty", new JsonObject
+            {
+                ["DrainRate"] = beatmap.Difficulty.DrainRate,
+                ["CircleSize"] = beatmap.Difficulty.CircleSize,
+                ["OverallDifficulty"] = beatmap.Difficulty.OverallDifficulty,
+                ["ApproachRate"] = beatmap.Difficulty.ApproachRate,
+                ["SliderMultiplier"] = beatmap.Difficulty.SliderMultiplier,
+                ["SliderTickRate"] = beatmap.Difficulty.SliderTickRate,
+            });
+            beatmapRoot.AddIfNotNull("Metadata", metadataRoot);
+            beatmapRoot.AddIfNotNull("UserSettings", new JsonObject
+            {
+                ["Offset"] = beatmap.UserSettings.Offset
+            });
+
+            beatmapRoot.AddIfNotNull("BeatmapSet", beatmap.BeatmapSet.OnlineID);
+            beatmapRoot.AddIfNotNull("Status", beatmap.Status);
+            beatmapRoot.AddIfNotNull("OnlineID", beatmap.OnlineID);
+            beatmapRoot.AddIfNotNull("Length", beatmap.Length);
+            beatmapRoot.AddIfNotNull("BPM", beatmap.BPM);
+            beatmapRoot.AddIfNotNull("Hash", beatmap.Hash);
+            beatmapRoot.AddIfNotNull("StarRating", beatmap.StarRating);
+            beatmapRoot.AddIfNotNull("MD5Hash", beatmap.MD5Hash);
+            beatmapRoot.AddIfNotNull("OnlineMD5Hash", beatmap.OnlineMD5Hash);
+            beatmapRoot.AddIfNotNull("LastLocalUpdate", beatmap.LastLocalUpdate);
+            beatmapRoot.AddIfNotNull("LastOnlineUpdate", beatmap.LastOnlineUpdate);
+            beatmapRoot.AddIfNotNull("Hidden", beatmap.Hidden);
+            beatmapRoot.AddIfNotNull("EndTimeObjectCount", beatmap.EndTimeObjectCount);
+            beatmapRoot.AddIfNotNull("TotalObjectCount", beatmap.TotalObjectCount);
+            beatmapRoot.AddIfNotNull("LastPlayed", beatmap.LastPlayed);
+            beatmapRoot.AddIfNotNull("BeatDivisor", beatmap.BeatDivisor);
+            beatmapRoot.AddIfNotNull("EditorTimestamp", beatmap.EditorTimestamp);
+
+            beatmapsRoot.Add(md5, beatmapRoot);
+        }
+
+        foreach (var (id, beatmapset) in beatmapsets)
+        {
+            var beatmapSetRoot = new JsonObject();
+
+            var files = new JsonObject();
+            foreach (var file in beatmapset.Files)
+            {
+                files[file.Filename] = file.File.Hash;
+            }
+
+            beatmapSetRoot.Add("OnlineID", beatmapset.OnlineID);
+            beatmapSetRoot.Add("Files", files);
+
+            var beatmapsetBeatmaps = new JsonArray();
+            foreach (var beatmapsetBeatmap in beatmapset.Beatmaps)
+            {
+                beatmapsetBeatmaps.Add(beatmapsetBeatmap.MD5Hash);
+            }
+
+            beatmapSetRoot.Add("Beatmaps", beatmapsetBeatmaps);
+            beatmapSetsRoot.Add($"{id}", beatmapSetRoot);
+        }
+
+        foreach (var score in scores)
+        {
+            var scoreRoot = new JsonObject();
+
+            if (score.BeatmapInfo is not null)
+            {
+                scoreRoot.AddIfNotNull("BeatmapInfo", score.BeatmapInfo.MD5Hash);
+            }
+
+            scoreRoot.AddIfNotNull("ClientVersion", score.ClientVersion);
+            scoreRoot.AddIfNotNull("BeatmapHash", score.BeatmapHash);
+            scoreRoot.AddIfNotNull("Ruleset", score.Ruleset.OnlineID);
+
+            var files = new JsonObject();
+            foreach (var file in score.Files)
+            {
+                files[file.Filename] = file.File.Hash;
+            }
+
+            scoreRoot.AddIfNotNull("Files", files);
+            scoreRoot.AddIfNotNull("Hash", score.Hash);
+            scoreRoot.AddIfNotNull("DeletePending", score.DeletePending);
+            scoreRoot.AddIfNotNull("TotalScore", score.TotalScore);
+            scoreRoot.AddIfNotNull("TotalScoreWithoutMods", score.TotalScoreWithoutMods);
+            scoreRoot.AddIfNotNull("TotalScoreVersion", score.TotalScoreVersion);
+            scoreRoot.AddIfNotNull("LegacyTotalScore", score.LegacyTotalScore);
+            scoreRoot.AddIfNotNull("BackgroundReprocessingFailed", score.BackgroundReprocessingFailed);
+            scoreRoot.AddIfNotNull("MaxCombo", score.MaxCombo);
+            scoreRoot.AddIfNotNull("Accuracy", score.Accuracy);
+            scoreRoot.AddIfNotNull("Date", score.Date);
+            scoreRoot.AddIfNotNull("PP", score.PP);
+            scoreRoot.AddIfNotNull("OnlineID", score.OnlineID);
+            scoreRoot.AddIfNotNull("LegacyOnlineID", score.LegacyOnlineID);
+            scoreRoot.AddIfNotNull("User", score.User.OnlineID);
+            scoreRoot.AddIfNotNull("Mods", score.Mods);
+            scoreRoot.AddIfNotNull("Statistics", score.Statistics);
+            scoreRoot.AddIfNotNull("MaximumStatistics", score.MaximumStatistics);
+            scoreRoot.AddIfNotNull("Rank", score.Rank);
+            scoreRoot.AddIfNotNull("Combo", score.Combo);
+            scoreRoot.AddIfNotNull("IsLegacyScore", score.IsLegacyScore);
+
+            var pauses = new JsonArray();
+            foreach (var pause in score.Pauses)
+            {
+                pauses.Add(pause);
+            }
+
+            scoreRoot.AddIfNotNull("Pauses", pauses);
+
+            scoresRoot.Add(scoreRoot);
+        }
+
+        foreach (var collection in collections)
+        {
+            var collectionRoot = new JsonObject();
+
+            collectionRoot.AddIfNotNull("Name", collection.Name);
+
+            var hashes = new JsonArray();
+            foreach (var hash in collection.BeatmapMD5Hashes)
+            {
+                hashes.Add(hash);
+            }
+
+            collectionRoot.AddIfNotNull("BeatmapMD5Hashes", hashes);
+            collectionRoot.AddIfNotNull("LastModified", collection.LastModified);
+
+            collectionsRoot.Add(collectionRoot);
+        }
+
+        foreach (var skin in skins)
+        {
+            var skinRoot = new JsonObject();
+
+            skinRoot.AddIfNotNull("Name", skin.Name);
+            skinRoot.AddIfNotNull("Creator", skin.Creator);
+            skinRoot.AddIfNotNull("InstantiationInfo", skin.InstantiationInfo);
+            skinRoot.AddIfNotNull("Hash", skin.Hash);
+            skinRoot.AddIfNotNull("Protected", skin.Protected);
+            var files = new JsonObject();
+            foreach (var file in skin.Files)
+            {
+                files[file.Filename] = file.File.Hash;
+            }
+
+            skinRoot.AddIfNotNull("Files", files);
+            skinRoot.AddIfNotNull("DeletePending", skin.DeletePending);
+
+            skinsRoot.Add(skinRoot);
+        }
+
+        root.Add("Users", usersRoot);
+        root.Add("Rulesets", rulesetsRoot);
+        root.Add("Beatmaps", beatmapsRoot);
         root.Add("BeatmapSets", beatmapSetsRoot);
+        root.Add("Collections", collectionsRoot);
+        root.Add("Scores", scoresRoot);
+        root.Add("Skins", skinsRoot);
 
         var json = root.ToJsonString(new JsonSerializerOptions
         {
@@ -483,7 +707,7 @@ internal static class Program
         if (args.Validate)
         {
             Console.WriteLine("Validating paths, this can take a while...");
-            api.ValidatePaths(args.OutPath);
+            Api.ValidatePaths(args.OutPath);
             Console.WriteLine("Validated paths");
 
             if (args.CannotContinue())
@@ -510,7 +734,7 @@ internal static class Program
 
         if (args.MD5Hash is not null || args.ReplayPath is not null)
         {
-            var md5hash = args.MD5Hash ?? api.GetMD5HashFromReplay(args.ReplayPath);
+            var md5hash = args.MD5Hash ?? Api.GetMD5HashFromReplay(args.ReplayPath);
 
             var beatmap = api.Realm.All<Beatmap>().First(b => b.MD5Hash == md5hash);
 
