@@ -52,6 +52,38 @@ public static class Extensions
             obj.Add(child);
         }
     }
+
+
+    public static void WriteString(this BinaryWriter writer, string? value)
+    {
+        if (value is null)
+        {
+            writer.Write((ushort)0);
+            return;
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(value);
+
+        if (bytes.Length >= ushort.MaxValue)
+        {
+            throw new OverflowException("String too long");
+        }
+
+        writer.Write((ushort)bytes.Length);
+
+        writer.Write(bytes);
+    }
+
+    public static void WriteHash(this BinaryWriter writer, string value)
+    {
+        var bytes = Convert.FromHexString(value);
+        writer.Write(bytes);
+    }
+
+    public static void WriteDateTime(this BinaryWriter writer, DateTimeOffset? time)
+    {
+        writer.Write(time?.ToUnixTimeMilliseconds() ?? 0);
+    }
 }
 
 [Preserve(AllMembers = true)]
@@ -483,64 +515,180 @@ public class Api
         return json;
     }
 
-    private static void WriteString(BinaryWriter writer, string value, bool mode)
+    public void ExportToBinary(BinaryWriter writer)
     {
-        var bytes = Encoding.UTF8.GetBytes(value);
+        var users = Realm.All<RealmUser>()
+            .AsEnumerable()
+            .DistinctBy(item => item.OnlineID) // idky there is duplicate users, so I have to have this
+            .ToImmutableList();
 
-        if (mode)
+        var rulesets = Realm.All<Ruleset>().ToImmutableList();
+        var beatmaps = Realm.All<Beatmap>().ToImmutableList();
+        var beatmapsets = Realm.All<BeatmapSet>().ToImmutableList();
+        var collections = Realm.All<BeatmapCollection>().ToImmutableList();
+        var scores = Realm.All<Score>().ToImmutableList();
+        var skins = Realm.All<Skin>().ToImmutableList();
+
+        writer.Write((uint)users.Count);
+        foreach (var user in users)
         {
-            if (bytes.Length >= byte.MaxValue)
+            writer.Write((long)user.OnlineID);
+            writer.WriteString(user.Username);
+            writer.WriteString(user.CountryCode);
+        }
+
+        writer.Write((uint)rulesets.Count);
+        foreach (var ruleset in rulesets)
+        {
+            writer.Write((long)ruleset.OnlineID);
+            writer.WriteString(ruleset.ShortName);
+            writer.WriteString(ruleset.Name);
+            writer.WriteString(ruleset.InstantiationInfo);
+            writer.Write((long)ruleset.LastAppliedDifficultyVersion);
+            writer.Write((bool)ruleset.Available);
+        }
+
+        foreach (var beatmap in beatmaps)
+        {
+            writer.WriteHash(beatmap.MD5Hash);
+
+            // Ruleset
+            writer.Write((long)beatmap.Ruleset.OnlineID);
+
+            // Difficulty
+            writer.WriteString(beatmap.DifficultyName);
+            writer.Write((float)beatmap.Difficulty.DrainRate);
+            writer.Write((float)beatmap.Difficulty.CircleSize);
+            writer.Write((float)beatmap.Difficulty.OverallDifficulty);
+            writer.Write((float)beatmap.Difficulty.ApproachRate);
+            writer.Write((double)beatmap.Difficulty.SliderMultiplier);
+            writer.Write((double)beatmap.Difficulty.SliderTickRate);
+
+            // Metadata
+            writer.WriteString(beatmap.Metadata.Title);
+            writer.WriteString(beatmap.Metadata.TitleUnicode);
+            writer.WriteString(beatmap.Metadata.Artist);
+            writer.WriteString(beatmap.Metadata.ArtistUnicode);
+            writer.Write((long)beatmap.Metadata.Author.OnlineID);
+            writer.WriteString(beatmap.Metadata.Source);
+            writer.WriteString(beatmap.Metadata.Tags);
+            writer.Write((long)beatmap.Metadata.PreviewTime);
+            writer.WriteString(beatmap.Metadata.AudioFile);
+            writer.WriteString(beatmap.Metadata.BackgroundFile);
+
+            writer.Write((uint)beatmap.Metadata.UserTags.Count);
+            foreach (var tag in beatmap.Metadata.UserTags)
             {
-                throw new OverflowException("String too long, use Binary2 instead");
+                writer.WriteString(tag);
             }
 
-            writer.Write((byte)bytes.Length);
+            writer.Write((double)beatmap.UserSettings.Offset);
+
+            // Beatmap
+            writer.Write((long)beatmap.BeatmapSet.OnlineID);
+            writer.Write((long)beatmap.Status);
+            writer.Write((long)beatmap.OnlineID);
+            writer.Write((double)beatmap.Length);
+            writer.Write((double)beatmap.BPM);
+            writer.WriteHash(beatmap.Hash);
+            writer.Write((double)beatmap.StarRating);
+            writer.WriteHash(beatmap.OnlineMD5Hash);
+            writer.WriteDateTime(beatmap.LastLocalUpdate);
+            writer.WriteDateTime(beatmap.LastOnlineUpdate);
+            writer.Write((bool)beatmap.Hidden);
+            writer.Write((long)beatmap.EndTimeObjectCount);
+            writer.Write((long)beatmap.TotalObjectCount);
+            writer.WriteDateTime(beatmap.LastPlayed);
+            writer.Write((long)beatmap.BeatDivisor);
+            writer.Write((double)(beatmap.EditorTimestamp ?? 0));
         }
-        else
+
+        writer.Write((uint)beatmapsets.Count);
+        foreach (var beatmapset in beatmapsets)
         {
-            writer.Write((uint)bytes.Length);
-        }
+            writer.Write((long)beatmapset.OnlineID);
 
-        writer.Write(bytes);
-    }
-
-    private static void WriteHash(BinaryWriter writer, string value)
-    {
-        var bytes = Convert.FromHexString(value);
-        writer.Write(bytes);
-    }
-
-    public void ExportToBinary(BinaryWriter writer, bool mode)
-    {
-        var sets = Realm.All<BeatmapSet>().ToList();
-
-        writer.Write((bool)mode);
-
-        writer.Write((uint)sets.Count);
-        foreach (var set in sets)
-        {
-            writer.Write((long)set.OnlineID);
-
-            writer.Write((uint)set.Files.Count);
-            foreach (var file in set.Files)
+            writer.Write((uint)beatmapset.Files.Count);
+            foreach (var file in beatmapset.Files)
             {
-                WriteString(writer, file.Filename, mode);
-                WriteHash(writer, file.File.Hash);
+                writer.WriteString(file.Filename);
+                writer.WriteHash(file.File.Hash);
             }
 
-            writer.Write((uint)set.Beatmaps.Count);
-            foreach (var beatmap in set.Beatmaps)
+            writer.Write((uint)beatmapset.Beatmaps.Count);
+            foreach (var beatmap in beatmapset.Beatmaps)
             {
-                WriteHash(writer, beatmap.MD5Hash);
                 writer.Write((long)beatmap.OnlineID);
-                WriteString(writer, beatmap.Metadata.Title, mode);
-                WriteString(writer, beatmap.Metadata.TitleUnicode, mode);
-                WriteString(writer, beatmap.Metadata.Artist, mode);
-                WriteString(writer, beatmap.Metadata.ArtistUnicode, mode);
-                WriteString(writer, beatmap.Metadata.Source, mode);
-                WriteString(writer, beatmap.Metadata.AudioFile, mode);
-                WriteString(writer, beatmap.Metadata.BackgroundFile, mode);
             }
+        }
+
+        writer.Write((uint)scores.Count);
+        foreach (var score in scores)
+        {
+            writer.WriteString(score.BeatmapInfo?.MD5Hash);
+            writer.WriteString(score.ClientVersion);
+            writer.WriteHash(score.BeatmapHash);
+            writer.Write((long)score.Ruleset.OnlineID);
+
+            writer.Write((uint)score.Files.Count);
+            foreach (var file in score.Files)
+            {
+                writer.WriteString(file.Filename);
+                writer.WriteHash(file.File.Hash);
+            }
+
+            writer.WriteHash(score.Hash);
+            writer.Write((bool)score.DeletePending);
+            writer.Write((long)score.TotalScore);
+            writer.Write((long)score.TotalScoreWithoutMods);
+            writer.Write((long)score.TotalScoreVersion);
+            writer.Write((long)(score.LegacyTotalScore ?? 0));
+            writer.Write((bool)score.BackgroundReprocessingFailed);
+            writer.Write((long)score.MaxCombo);
+            writer.Write((double)score.Accuracy);
+            writer.WriteDateTime(score.Date);
+            writer.Write((double)(score.PP ?? 0));
+            writer.Write((long)score.OnlineID);
+            writer.Write((long)score.LegacyOnlineID);
+            writer.Write((long)score.User.OnlineID);
+            writer.WriteString(score.Mods);
+            writer.WriteString(score.Statistics);
+            writer.WriteString(score.MaximumStatistics);
+            writer.Write((long)score.Rank);
+            writer.Write((long)score.Combo);
+            writer.Write((bool)score.IsLegacyScore);
+        }
+
+        foreach (var collection in collections)
+        {
+            writer.WriteString(collection.Name);
+
+            writer.Write((long)collection.BeatmapMD5Hashes.Count);
+            foreach (var hash in collection.BeatmapMD5Hashes)
+            {
+                writer.WriteHash(hash);
+            }
+
+            writer.WriteDateTime(collection.LastModified);
+        }
+
+        writer.Write((uint)skins.Count);
+        foreach (var skin in skins)
+        {
+            writer.WriteString(skin.Name);
+            writer.WriteString(skin.Creator);
+            writer.WriteString(skin.InstantiationInfo);
+            writer.WriteHash(skin.Hash);
+            writer.Write((bool)skin.Protected);
+
+            writer.Write((uint)skin.Files.Count);
+            foreach (var file in skin.Files)
+            {
+                writer.WriteString(file.Filename);
+                writer.WriteHash(file.File.Hash);
+            }
+
+            writer.Write((bool)skin.DeletePending);
         }
     }
 }
@@ -588,8 +736,7 @@ internal static class Program
         {
             Json,
             PrettyJson,
-            Binary1,
-            Binary2
+            Binary,
         }
     }
 
@@ -612,7 +759,7 @@ internal static class Program
         }
     }
 
-    private static void ExportBinary(this Api api, string? outPath, bool mode)
+    private static void ExportBinary(this Api api, string? outPath)
     {
         var stream = outPath is not null
             ? new FileStream(outPath, FileMode.OpenOrCreate)
@@ -620,7 +767,7 @@ internal static class Program
 
         var writer = new BinaryWriter(stream);
 
-        api.ExportToBinary(writer, mode);
+        api.ExportToBinary(writer);
 
         writer.Flush();
         writer.Close();
@@ -644,11 +791,8 @@ internal static class Program
             case Args.ExportFormat.PrettyJson:
                 api.ExportJson(outPath, true);
                 break;
-            case Args.ExportFormat.Binary1:
-                api.ExportBinary(outPath, true);
-                break;
-            case Args.ExportFormat.Binary2:
-                api.ExportBinary(outPath, false);
+            case Args.ExportFormat.Binary:
+                api.ExportBinary(outPath);
                 break;
         }
     }
