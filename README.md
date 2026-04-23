@@ -4,6 +4,10 @@ Creates [symlinks](https://en.wikipedia.org/wiki/Symbolic_link)
 from [osu lazers hashed based files](https://osu.ppy.sh/wiki/en/Client/Release_stream/Lazer/File_storage) into classic
 like format
 
+## Notice
+
+I might not be working on this for a while, since I haven't for months and forgot to commit and publish some changes
+
 ## Download
 
 Download latest executable directly from
