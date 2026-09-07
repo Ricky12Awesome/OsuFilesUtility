@@ -14,6 +14,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   PROJECT_FILE: OsuFilesUtility.csproj
   EXE_NAME: OsuFilesUtility
+  NEW_EXE_NAME: ofu
 
 jobs:
   artifact:
@@ -26,21 +27,25 @@ jobs:
             os-name: Linux x64
             rid: linux-x64
             ext:
+            archive_ext: .tar.gz
 
           - os: windows-latest
             os-name: Windows x64
             rid: win-x64
             ext: .exe
+            archive_ext: .zip
             
           - os: macos-latest
             os-name: MacOS x64
             rid: osx-x64
             ext:
+            archive_ext: .tar.gz
 
           - os: macos-latest
             os-name: MacOS ARM
             rid: osx-arm64
             ext:
+            archive_ext: .tar.gz
 
     steps:
       - name: Checkout code
@@ -79,14 +84,30 @@ jobs:
         
       - name: Rename Exe
         shell: bash
-        run: mv build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}${{ matrix.job.ext }} build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}-${{ matrix.job.rid }}${{ matrix.job.ext }}
-      
+        run: mv build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}${{ matrix.job.ext }} build/${{ matrix.job.rid }}/${{ env.NEW_EXE_NAME }}${{ matrix.job.ext }}
+
+      - name: Create Windows archive
+        if: ${{ startsWith(matrix.job.rid, 'win-') }}
+        shell: pwsh
+        run: |
+          $archive = "build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}-${{ matrix.job.rid }}${{ matrix.job.archive_ext }}"
+          $executable = "build/${{ matrix.job.rid }}/${{ env.NEW_EXE_NAME }}${{ matrix.job.ext }}"
+          Compress-Archive -LiteralPath $executable -DestinationPath $archive -Force
+
+      - name: Create Unix archive
+        if: ${{ !startsWith(matrix.job.rid, 'win-') }}
+        shell: bash
+        run: |
+          archive="build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}-${{ matrix.job.rid }}${{ matrix.job.archive_ext }}"
+          tar -czf "$archive" \
+            -C "build/${{ matrix.job.rid }}" \
+            "${{ env.NEW_EXE_NAME }}${{ matrix.job.ext }}"
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.job.rid }}
-          path: build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}-${{ matrix.job.rid }}${{ matrix.job.ext }}
-#          path: build/${{ matrix.job.rid }}/*
+          path: build/${{ matrix.job.rid }}/${{ env.EXE_NAME }}-${{ matrix.job.rid }}${{ matrix.job.archive_ext }}
 
   create-release:
     runs-on: ubuntu-latest
@@ -97,30 +118,12 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Download Windows artifact
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: build-win-x64
-          path: artifacts/win-x64
-
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build-linux-x64
-          path: artifacts/linux-x64
-
-      - name: Download macOS x64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build-osx-x64
-          path: artifacts/osx-x64
-      
-      # Uncomment if you enabled osx-arm64 in the matrix
-      - name: Download macOS arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build-osx-arm64
-          path: artifacts/osx-arm64
+          pattern: build-*
+          path: artifacts
+          merge-multiple: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -130,8 +133,4 @@ jobs:
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: |
-            artifacts/win-x64/*
-            artifacts/linux-x64/*
-            artifacts/osx-x64/*
-            artifacts/osx-arm64/*
+          files: artifacts/*
