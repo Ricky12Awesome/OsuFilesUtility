@@ -361,7 +361,7 @@ internal static class CommandLine
     {
         return new Args
         {
-            LazerPath = parsed.GetValue(lazerPath)!.FullName,
+            LazerPath = Api.ResolveLazerPath(parsed.GetValue(lazerPath)!.FullName),
             OutPath = outPath,
             IsCopy = isCopy,
             IsQuiet = parsed.GetValue(isQuiet),
@@ -409,7 +409,7 @@ internal static class CommandLine
         var outputPath = Path.GetFullPath(Args.DefaultOutPath);
         var args = new Args
         {
-            LazerPath = parsed.GetValue(lazerPath)!.FullName,
+            LazerPath = Api.ResolveLazerPath(parsed.GetValue(lazerPath)!.FullName),
             OutPath = outputPath,
             IsCopy = false,
             IsQuiet = parsed.GetValue(isQuiet),

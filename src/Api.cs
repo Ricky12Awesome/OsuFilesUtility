@@ -15,7 +15,7 @@ public class Api
     // ReSharper disable InconsistentNaming
     public Api(string? _lazerPath, bool verbose)
     {
-        var lazerPath = _lazerPath ?? GetDefaultLazerPath();
+        var lazerPath = ResolveLazerPath(_lazerPath ?? GetPlatformDefaultLazerPath());
         var realmPath = Path.Join(lazerPath, "client.realm");
         var filesPath = Path.Join(lazerPath, "files");
 
@@ -37,6 +37,54 @@ public class Api
 
     // https://osu.ppy.sh/wiki/en/Client/Release_stream/Lazer/File_storage
     public static string GetDefaultLazerPath()
+    {
+        return ResolveLazerPath(GetPlatformDefaultLazerPath());
+    }
+
+    public static string ResolveLazerPath(string lazerPath)
+    {
+        if (string.IsNullOrEmpty(lazerPath))
+        {
+            return lazerPath;
+        }
+
+        var storagePath = Path.Join(lazerPath, "storage.ini");
+
+        if (!System.IO.File.Exists(storagePath))
+        {
+            return lazerPath;
+        }
+
+        try
+        {
+            foreach (var line in System.IO.File.ReadLines(storagePath))
+            {
+                var separator = line.IndexOf('=');
+
+                if (separator < 0 ||
+                    !line[..separator].Trim().Equals("FullPath", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var fullPath = line[(separator + 1)..].Trim();
+
+                return string.IsNullOrEmpty(fullPath) ? lazerPath : fullPath;
+            }
+        }
+        catch (IOException)
+        {
+            // TODO: Handle IO Errors
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // TODO: Handle if cannot be read or no perms
+        }
+
+        return lazerPath;
+    }
+
+    private static string GetPlatformDefaultLazerPath()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
