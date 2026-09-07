@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Realms;
 
+// ReSharper disable MemberCanBePrivate.Global
+
 namespace OsuFilesUtility;
 
 public class Api
@@ -10,6 +12,7 @@ public class Api
     public string LazerPath { get; private set; }
     public bool Verbose { get; private set; }
 
+    // ReSharper disable InconsistentNaming
     public Api(string? _lazerPath, bool verbose)
     {
         var lazerPath = _lazerPath ?? GetDefaultLazerPath();
@@ -60,7 +63,7 @@ public class Api
     }
 
     // https://osu.ppy.sh/wiki/en/Client/File_formats/osr_%28file_format%29
-    public static string GetMD5HashFromReplay(string? path)
+    public static string GetMd5HashFromReplay(string? path)
     {
         if (!Path.Exists(path)) throw new FileLoadException("Path to replay file not found");
 

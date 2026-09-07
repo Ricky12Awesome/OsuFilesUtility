@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+// ReSharper disable RedundantCast
 
 namespace OsuFilesUtility;
 

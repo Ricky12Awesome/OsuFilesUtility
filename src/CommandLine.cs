@@ -16,9 +16,9 @@ internal static class CommandLine
         public required bool IsVerbose { get; init; }
         public required Operation Command { get; init; }
         public string? Target { get; init; }
-        public string? MD5Hash { get; init; }
+        public string? Md5Hash { get; init; }
         public string? ReplayPath { get; init; }
-        public long? OnlineID { get; init; }
+        public long? OnlineId { get; init; }
         public bool Pretty { get; init; }
 
         public enum Operation
@@ -26,9 +26,9 @@ internal static class CommandLine
             ExportJson,
             ExportBinary,
             LinkAll,
-            LinkMD5,
+            LinkMd5,
             LinkReplay,
-            LinkID,
+            LinkId,
             Diff,
             Validate,
         }
@@ -139,7 +139,7 @@ internal static class CommandLine
             lazerPath,
             isVerbose,
             isQuiet,
-            Args.Operation.LinkMD5,
+            Args.Operation.LinkMd5,
             parsed.GetValue(linkMd5Output),
             isCopy: parsed.GetValue(linkMd5Copy),
             md5Hash: parsed.GetValue(md5))));
@@ -182,7 +182,7 @@ internal static class CommandLine
             lazerPath,
             isVerbose,
             isQuiet,
-            Args.Operation.LinkID,
+            Args.Operation.LinkId,
             parsed.GetValue(linkIdOutput),
             isCopy: parsed.GetValue(linkIdCopy),
             onlineId: parsed.GetValue(onlineId))));
@@ -300,9 +300,9 @@ internal static class CommandLine
             IsVerbose = parsed.GetValue(isVerbose),
             Command = command,
             Target = target,
-            MD5Hash = md5Hash,
+            Md5Hash = md5Hash,
             ReplayPath = replayPath,
-            OnlineID = onlineId,
+            OnlineId = onlineId,
             Pretty = pretty,
         };
     }
@@ -384,14 +384,9 @@ internal static class CommandLine
             Console.WriteLine();
         }
 
-        if (validate)
-        {
-            Console.WriteLine("This will validate existing symlinks and symlink all beatmaps!");
-        }
-        else
-        {
-            Console.WriteLine("This will symlink all beatmaps!");
-        }
+        Console.WriteLine(validate
+            ? "This will validate existing symlinks and symlink all beatmaps!"
+            : "This will symlink all beatmaps!");
 
         Console.WriteLine(" ");
         Console.WriteLine($"Lazer path: {args.LazerPath}");
@@ -451,17 +446,17 @@ internal static class CommandLine
                     api.CreateLinksAll(outputPath, args.IsCopy);
                     Console.WriteLine("Done.");
                     return;
-                case Args.Operation.LinkMD5:
-                    var beatmap = api.Realm.All<Beatmap>().First(b => b.MD5Hash == args.MD5Hash);
+                case Args.Operation.LinkMd5:
+                    var beatmap = api.Realm.All<Beatmap>().First(b => b.MD5Hash == args.Md5Hash);
                     api.CreateLinks(beatmap, outputPath, args.IsCopy);
                     return;
                 case Args.Operation.LinkReplay:
-                    var md5Hash = Api.GetMD5HashFromReplay(args.ReplayPath);
+                    var md5Hash = Api.GetMd5HashFromReplay(args.ReplayPath);
                     var replayBeatmap = api.Realm.All<Beatmap>().First(b => b.MD5Hash == md5Hash);
                     api.CreateLinks(replayBeatmap, outputPath, args.IsCopy);
                     return;
-                case Args.Operation.LinkID:
-                    var onlineId = args.OnlineID;
+                case Args.Operation.LinkId:
+                    var onlineId = args.OnlineId;
                     Func<IList<Beatmap>, bool> hasAny = maps => maps.Any(map => map.OnlineID == onlineId);
                     var set = api.Realm.All<BeatmapSet>().First(b =>
                         b.OnlineID == onlineId || hasAny(b.Beatmaps));
