@@ -160,9 +160,9 @@ public class Api
         }
     }
 
-    public string ExportToJson(bool pretty)
+    internal string ExportToJson(JsonExporter.ExportSettings settings)
     {
-        return JsonExporter.Export(this, pretty);
+        return JsonExporter.Export(this, settings);
     }
 
     public void ExportToBinary(BinaryWriter writer)

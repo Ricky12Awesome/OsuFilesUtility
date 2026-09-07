@@ -80,11 +80,25 @@ This will link the difference between two lazer installs
 
 ## Export
 
-This will export into JSON. Omit the output path to write to stdout; use `--pretty` for formatted JSON.
+This will export all data into JSON. Omit the output path to write to stdout; use `--pretty` for formatted JSON.
 
 ```sh
 <executable> export json --pretty out.json
 ```
+
+Pass one or more section flags to export only those sections. If no section flags are
+passed, all sections are exported. `--all-except` reverses this behavior and excludes
+the specified sections. `--remove-empty` omits selected sections with no data.
+`--all-except` must be followed by at least one section flag.
+
+```sh
+<executable> export json --users
+<executable> export json --beatmaps
+<executable> export json --scores --skins
+<executable> export json --all-except --users
+```
+
+`--maps` is an alias for `--beatmaps`, and `--sets` is an alias for `--beatmapsets`.
 
 ---
 This will export into binary format (this is experimental)

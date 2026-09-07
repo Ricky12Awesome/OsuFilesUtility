@@ -19,7 +19,7 @@ internal static class CommandLine
         public string? Md5Hash { get; init; }
         public string? ReplayPath { get; init; }
         public long? OnlineId { get; init; }
-        public bool Pretty { get; init; }
+        public JsonExporter.ExportSettings JsonExportSettings { get; init; } = new();
 
         public enum Operation
         {
@@ -79,9 +79,72 @@ internal static class CommandLine
         {
             Description = "Format the JSON with indentation",
         };
+        var removeEmptyJson = new Option<bool>("--remove-empty")
+        {
+            Description = "Do not include empty data",
+        };
+        var allExceptJson = new Option<bool>("--all-except")
+        {
+            Description = "Export all except selected flags",
+        };
+        var usersJson = new Option<bool>("--users")
+        {
+            Description = "Export users",
+        };
+        var rulesetsJson = new Option<bool>("--rulesets")
+        {
+            Description = "Export rulesets",
+        };
+        var beatmapsJson = new Option<bool>("--beatmaps", "--maps")
+        {
+            Description = "Export beatmaps",
+        };
+        var beatmapSetsJson = new Option<bool>("--beatmapsets", "--sets")
+        {
+            Description = "Export beatmap sets",
+        };
+        var collectionsJson = new Option<bool>("--collections")
+        {
+            Description = "Export collections",
+        };
+        var scoresJson = new Option<bool>("--scores")
+        {
+            Description = "Export scores",
+        };
+        var skinsJson = new Option<bool>("--skins")
+        {
+            Description = "Export skins",
+        };
         var jsonOutput = CreateOutputArgument();
         exportJsonCommand.Options.Add(prettyJson);
+        exportJsonCommand.Options.Add(removeEmptyJson);
+        exportJsonCommand.Options.Add(allExceptJson);
+        exportJsonCommand.Options.Add(usersJson);
+        exportJsonCommand.Options.Add(rulesetsJson);
+        exportJsonCommand.Options.Add(beatmapsJson);
+        exportJsonCommand.Options.Add(beatmapSetsJson);
+        exportJsonCommand.Options.Add(collectionsJson);
+        exportJsonCommand.Options.Add(scoresJson);
+        exportJsonCommand.Options.Add(skinsJson);
         exportJsonCommand.Arguments.Add(jsonOutput);
+        var jsonFlagOptions = new[]
+        {
+            (Option: usersJson, Flag: JsonExporter.ExportFlags.Users),
+            (Option: rulesetsJson, Flag: JsonExporter.ExportFlags.Rulesets),
+            (Option: beatmapsJson, Flag: JsonExporter.ExportFlags.Beatmaps),
+            (Option: beatmapSetsJson, Flag: JsonExporter.ExportFlags.BeatmapSets),
+            (Option: collectionsJson, Flag: JsonExporter.ExportFlags.Collections),
+            (Option: scoresJson, Flag: JsonExporter.ExportFlags.Scores),
+            (Option: skinsJson, Flag: JsonExporter.ExportFlags.Skins),
+        };
+        exportJsonCommand.Validators.Add(commandResult =>
+        {
+            if (commandResult.GetResult(allExceptJson) is not null &&
+                jsonFlagOptions.All(option => commandResult.GetResult(option.Option) is null))
+            {
+                commandResult.AddError("--all-except requires at least one export flag to specify the exceptions");
+            }
+        });
         exportJsonCommand.SetAction(parsed => Run(CreateArgs(
             parsed,
             lazerPath,
@@ -89,7 +152,12 @@ internal static class CommandLine
             isQuiet,
             Args.Operation.ExportJson,
             parsed.GetValue(jsonOutput),
-            pretty: parsed.GetValue(prettyJson))));
+            jsonSettings: CreateJsonExportSettings(
+                parsed,
+                prettyJson,
+                removeEmptyJson,
+                allExceptJson,
+                jsonFlagOptions))));
 
         var exportBinaryCommand = new Command("binary", "Export beatmap data in binary format");
         // Keep the common typo working while exposing the correctly-spelled command in help.
@@ -289,7 +357,7 @@ internal static class CommandLine
         string? md5Hash = null,
         string? replayPath = null,
         long? onlineId = null,
-        bool pretty = false)
+        JsonExporter.ExportSettings? jsonSettings = null)
     {
         return new Args
         {
@@ -303,8 +371,33 @@ internal static class CommandLine
             Md5Hash = md5Hash,
             ReplayPath = replayPath,
             OnlineId = onlineId,
-            Pretty = pretty,
+            JsonExportSettings = jsonSettings ?? new JsonExporter.ExportSettings(),
         };
+    }
+
+    private static JsonExporter.ExportSettings CreateJsonExportSettings(
+        ParseResult parsed,
+        Option<bool> pretty,
+        Option<bool> removeEmpty,
+        Option<bool> allExcept,
+        IReadOnlyList<(Option<bool> Option, JsonExporter.ExportFlags Flag)> flagOptions)
+    {
+        var selectedFlags = flagOptions
+            .Where(option => parsed.GetValue(option.Option))
+            .Aggregate(JsonExporter.ExportFlags.None, (flags, option) => flags | option.Flag);
+
+        var hasSelectedFlags = selectedFlags != JsonExporter.ExportFlags.None;
+        var flags = hasSelectedFlags ? selectedFlags : JsonExporter.ExportFlags.All;
+
+        if (parsed.GetValue(allExcept))
+        {
+            flags = JsonExporter.ExportFlags.All & ~selectedFlags;
+        }
+
+        return new JsonExporter.ExportSettings(
+            IsPretty: parsed.GetValue(pretty),
+            RemoveEmpty: parsed.GetValue(removeEmpty),
+            Flags: flags);
     }
 
     private static void RunDefault(
@@ -429,7 +522,7 @@ internal static class CommandLine
             switch (args.Command)
             {
                 case Args.Operation.ExportJson:
-                    RunExport(api, ExportFormat.Json, args.OutPath, args.Pretty);
+                    RunExport(api, ExportFormat.Json, args.OutPath, args.JsonExportSettings);
                     return;
                 case Args.Operation.ExportBinary:
                     RunExport(api, ExportFormat.Binary, args.OutPath);
@@ -526,7 +619,11 @@ internal static class CommandLine
         Binary,
     }
 
-    private static void RunExport(Api api, ExportFormat format, string? outPath, bool pretty = false)
+    private static void RunExport(
+        Api api,
+        ExportFormat format,
+        string? outPath,
+        JsonExporter.ExportSettings? jsonSettings = null)
     {
         if (Directory.Exists(outPath))
         {
@@ -537,7 +634,7 @@ internal static class CommandLine
         switch (format)
         {
             case ExportFormat.Json:
-                ExportJson(api, outPath, pretty);
+                ExportJson(api, outPath, jsonSettings ?? new JsonExporter.ExportSettings());
                 break;
             case ExportFormat.Binary:
                 ExportBinary(api, outPath);
@@ -545,9 +642,9 @@ internal static class CommandLine
         }
     }
 
-    private static void ExportJson(Api api, string? outPath, bool pretty)
+    private static void ExportJson(Api api, string? outPath, JsonExporter.ExportSettings settings)
     {
-        var json = api.ExportToJson(pretty);
+        var json = api.ExportToJson(settings);
 
         if (outPath is not null)
         {

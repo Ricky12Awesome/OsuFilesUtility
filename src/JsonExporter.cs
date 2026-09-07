@@ -7,7 +7,34 @@ namespace OsuFilesUtility;
 
 internal static class JsonExporter
 {
-    public static string Export(Api api, bool pretty)
+    internal sealed record ExportSettings(
+        bool IsPretty = false,
+        bool RemoveEmpty = false,
+        ExportFlags Flags = ExportFlags.All
+    );
+
+    [Flags]
+    internal enum ExportFlags
+    {
+        None = 0,
+        Users = 1 << 0,
+        Rulesets = 1 << 1,
+        Beatmaps = 1 << 2,
+        BeatmapSets = 1 << 3,
+        Collections = 1 << 4,
+        Scores = 1 << 5,
+        Skins = 1 << 6,
+
+        All = Users
+              | Rulesets
+              | Beatmaps
+              | BeatmapSets
+              | Collections
+              | Scores
+              | Skins
+    }
+
+    public static string Export(Api api, ExportSettings settings)
     {
         var root = new JsonObject();
         var usersRoot = new JsonObject();
@@ -18,43 +45,86 @@ internal static class JsonExporter
         var scoresRoot = new JsonArray();
         var skinsRoot = new JsonArray();
 
-        var users = api.Realm.All<RealmUser>()
-            .AsEnumerable()
-            .DistinctBy(item => item.OnlineID) // idky there is duplicate users, so I have to have this
-            .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+        if (settings.Flags.HasFlag(ExportFlags.Users))
+        {
+            var users = api.Realm.All<RealmUser>()
+                .AsEnumerable()
+                .DistinctBy(item => item.OnlineID) // idky there is duplicate users, so I have to have this
+                .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
 
-        var rulesets = api.Realm.All<Ruleset>()
-            .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+            AddUsers(usersRoot, users);
+        }
 
-        var beatmaps = api.Realm.All<Beatmap>()
-            .ToImmutableSortedDictionary(key => key.MD5Hash, value => value);
+        if (settings.Flags.HasFlag(ExportFlags.Rulesets))
+        {
+            var rulesets = api.Realm.All<Ruleset>()
+                .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
 
-        var beatmapsets = api.Realm.All<BeatmapSet>()
-            .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+            AddRulesets(rulesetsRoot, rulesets);
+        }
 
-        var collections = api.Realm.All<BeatmapCollection>().ToImmutableList();
-        var scores = api.Realm.All<Score>().ToImmutableList();
-        var skins = api.Realm.All<Skin>().ToImmutableList();
+        if (settings.Flags.HasFlag(ExportFlags.Beatmaps))
+        {
+            var beatmaps = api.Realm.All<Beatmap>()
+                .ToImmutableSortedDictionary(key => key.MD5Hash, value => value);
 
-        AddUsers(usersRoot, users);
-        AddRulesets(rulesetsRoot, rulesets);
-        AddBeatmaps(beatmapsRoot, beatmaps);
-        AddBeatmapSets(beatmapSetsRoot, beatmapsets);
-        AddScores(scoresRoot, scores);
-        AddCollections(collectionsRoot, collections);
-        AddSkins(skinsRoot, skins);
+            AddBeatmaps(beatmapsRoot, beatmaps);
+        }
 
-        root.Add("Users", usersRoot);
-        root.Add("Rulesets", rulesetsRoot);
-        root.Add("Beatmaps", beatmapsRoot);
-        root.Add("BeatmapSets", beatmapSetsRoot);
-        root.Add("Collections", collectionsRoot);
-        root.Add("Scores", scoresRoot);
-        root.Add("Skins", skinsRoot);
+        if (settings.Flags.HasFlag(ExportFlags.BeatmapSets))
+        {
+            var beatmapsets = api.Realm.All<BeatmapSet>()
+                .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+
+            AddBeatmapSets(beatmapSetsRoot, beatmapsets);
+        }
+
+        if (settings.Flags.HasFlag(ExportFlags.Collections))
+        {
+            var collections = api.Realm.All<BeatmapCollection>().ToImmutableList();
+
+            AddCollections(collectionsRoot, collections);
+        }
+
+        if (settings.Flags.HasFlag(ExportFlags.Scores))
+        {
+            var scores = api.Realm.All<Score>().ToImmutableList();
+
+            AddScores(scoresRoot, scores);
+        }
+
+        if (settings.Flags.HasFlag(ExportFlags.Skins))
+        {
+            var skins = api.Realm.All<Skin>().ToImmutableList();
+
+            AddSkins(skinsRoot, skins);
+        }
+
+        if (!settings.RemoveEmpty || usersRoot.Count > 0)
+            root.Add("Users", usersRoot);
+
+        if (!settings.RemoveEmpty || rulesetsRoot.Count > 0)
+            root.Add("Rulesets", rulesetsRoot);
+
+        if (!settings.RemoveEmpty || beatmapsRoot.Count > 0)
+            root.Add("Beatmaps", beatmapsRoot);
+
+        if (!settings.RemoveEmpty || beatmapSetsRoot.Count > 0)
+            root.Add("BeatmapSets", beatmapSetsRoot);
+
+        if (!settings.RemoveEmpty || collectionsRoot.Count > 0)
+            root.Add("Collections", collectionsRoot);
+
+        if (!settings.RemoveEmpty || scoresRoot.Count > 0)
+            root.Add("Scores", scoresRoot);
+
+        if (!settings.RemoveEmpty || skinsRoot.Count > 0)
+            root.Add("Skins", skinsRoot);
+
 
         return root.ToJsonString(new JsonSerializerOptions
         {
-            WriteIndented = pretty,
+            WriteIndented = settings.IsPretty,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         });
     }
@@ -155,7 +225,8 @@ internal static class JsonExporter
         }
     }
 
-    private static void AddBeatmapSets(JsonObject beatmapSetsRoot, IEnumerable<KeyValuePair<long, BeatmapSet>> beatmapsets)
+    private static void AddBeatmapSets(JsonObject beatmapSetsRoot,
+        IEnumerable<KeyValuePair<long, BeatmapSet>> beatmapsets)
     {
         foreach (var (id, beatmapset) in beatmapsets)
         {
