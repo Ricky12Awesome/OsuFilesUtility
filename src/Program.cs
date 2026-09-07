@@ -2,8 +2,8 @@
 
 internal static class Program
 {
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
-        CommandLine.Run(args);
+        return CommandLine.Run(args);
     }
 }

@@ -52,45 +52,52 @@ Probably the most common use case, this will map ALL beatmaps from lazer to `./s
 these files take no space since they're symlinks pointing to the original file
 
 ```sh
-<executable> -o ./songs -a
+<executable> link all ./songs
 ```
 
 ---
 Should run this if any maps gets deleted, this will validate all files in `./songs` and remove invalid symlinks
 
 ```sh
-<executable> -o ./songs -v
+<executable> validate ./songs
 ```
 
 ---
 This will link only the beatmap used in this replay
 
 ```sh
-<executable> -o ./songs -r path/to/replay.osr
+<executable> link replay path/to/replay.osr ./songs
 ```
 
 ---
 This will link the difference between two lazer installs
 
 ```sh
-<executable> -o ./songs --diff path/to/other/lazer/install
+<executable> diff path/to/other/lazer/install ./songs
 ``` 
 
 ---
 
 ## Export
 
-This will export into json (use `PrettyJson` for formated json)
+This will export into JSON. Omit the output path to write to stdout; use `--pretty` for formatted JSON.
 
 ```sh
-<executable> -e Json -o out.json
+<executable> export json --pretty out.json
 ```
 
 ---
 This will export into binary format (this is experimental)
 
 ```sh
-<executable> -e Binray -o out.bin
+<executable> export binary out.bin
+```
+
+Global options can be used with every command:
+
+```sh
+<executable> --dir path/to/osu --verbose link all ./songs
+<executable> -q validate ./songs
 ```
 
 ---
