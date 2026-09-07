@@ -1,22 +1,21 @@
-# OsuLazerFilesSymlinker
+# OsuFilesUtility
 
 Creates [symlinks](https://en.wikipedia.org/wiki/Symbolic_link)
 from [osu lazers hashed based files](https://osu.ppy.sh/wiki/en/Client/Release_stream/Lazer/File_storage) into classic
-like format
+like format, and more
 
 ## Notice
 
 I might not be working on this for a while, since I haven't for months and forgot to commit and publish some changes
 
 ## Download
-
 Download latest executable directly from
-[releases](https://github.com/Ricky12Awesome/OsuLazerFilesSymlinker/releases/latest)
+[releases](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest)
 
-- [Windows x64](https://github.com/Ricky12Awesome/OsuLazerFilesSymlinker/releases/latest/download//OsuLazerFilesSymlinker-win-x64.exe)
-- [Linux x64](https://github.com/Ricky12Awesome/OsuLazerFilesSymlinker/releases/latest/download//OsuLazerFilesSymlinker-linux-x64)
-- [macOS x64](https://github.com/Ricky12Awesome/OsuLazerFilesSymlinker/releases/latest/download//OsuLazerFilesSymlinker-osx-x64)
-- [macOS ARM64](https://github.com/Ricky12Awesome/OsuLazerFilesSymlinker/releases/latest/download//OsuLazerFilesSymlinker-osx-arm64)
+- [Windows x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-win-x64.exe)
+- [Linux x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-linux-x64)
+- [macOS x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-osx-x64)
+- [macOS ARM64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-osx-arm64)
 
 ## Can this be used for osu classic?
 
@@ -35,7 +34,7 @@ This will mess up the order of stuff like `Date Added`
 
 ## Basic Usage
 
-SImply run the exe and it will create a folder
+Simply run the exe and it will create a folder
 `YOU-CAN-RENAME-THIS-AND-MOVE-THIS-ON-SAME-DRIVE`
 you can rename the folder to anything and be move anywhere on same drive
 if you move this folder to a different drive it will copy files and not be symlinks anymore (at least on windows)
@@ -44,7 +43,7 @@ You can also drag and drop a folder on the program, and it will use that for out
 
 ## CLI Usage
 
-`<executable>` is the path to the executable file like `./path/to/OsuLazerFilesSymlinker-win-x64.exe`
+`<executable>` is the path to the executable file like `./path/to/OsuFilesUtility-win-x64.exe`
 
 on windows, you can drag and drop the exe into terminal to paste path directly
 
@@ -201,11 +200,6 @@ edit `OsuSongsDir` in `settings/default.json` in danser directory
 ```
 
 ## TODO
-- Rename Project since "symlinker" doesn't fit this project anymore
-    - Potential Names:
-      - OsuLazerFiles (olf)
-      - OsuFilesManager (ofm)
-      - OsuLazerFilesManager (olfm)
 - Logging
 - Installer for each platform
 - Support other data then just beatmaps/sets

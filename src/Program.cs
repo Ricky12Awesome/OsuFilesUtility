@@ -20,7 +20,7 @@ using Realms;
 // ReSharper disable UnusedAutoPropertyAccessor.Local
 // ReSharper disable ReplaceAutoPropertyWithComputedProperty
 
-namespace OsuLazerFilesSymlinker;
+namespace OsuFilesUtility;
 
 public static class Extensions
 {
@@ -105,7 +105,7 @@ public class Api
 
         var config = new RealmConfiguration(realmPath)
         {
-            SchemaVersion = 51,
+            SchemaVersion = 52,
             IsReadOnly = true,
             Schema = RealmSchema.Types
         };

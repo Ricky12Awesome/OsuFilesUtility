@@ -9,7 +9,7 @@ using Realms;
 // ReSharper disable UnusedAutoPropertyAccessor.Local
 // ReSharper disable AutoPropertyCanBeMadeGetOnly.Local
 
-namespace OsuLazerFilesSymlinker;
+namespace OsuFilesUtility;
 
 // I had to make this by hand since realm studio export C# doesn't work
 public static class RealmSchema
