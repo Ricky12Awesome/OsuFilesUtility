@@ -12,10 +12,10 @@ I might not be working on this for a while, since I haven't for months and forgo
 Download latest executable directly from
 [releases](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest)
 
-- [Windows x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-win-x64.exe)
-- [Linux x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-linux-x64)
-- [macOS x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-osx-x64)
-- [macOS ARM64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download//OsuFilesUtility-osx-arm64)
+- [Windows x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download/OsuFilesUtility-win-x64.zip)
+- [Linux x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download/OsuFilesUtility-linux-x64.tar.gz)
+- [macOS x64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download/OsuFilesUtility-osx-x64.tar.gz)
+- [macOS ARM64](https://github.com/Ricky12Awesome/OsuFilesUtility/releases/latest/download/OsuFilesUtility-osx-arm64.tar.gz)
 
 ## Can this be used for osu classic?
 
