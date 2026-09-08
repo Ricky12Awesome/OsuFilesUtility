@@ -236,8 +236,6 @@ internal static class CommandLine
         exportStreamCommand.Subcommands.Add(exportStreamJsonCommand);
 
         var exportBinaryCommand = new Command("binary", "Export beatmap data in binary format");
-        // Keep the common typo working while exposing the correctly-spelled command in help.
-        exportBinaryCommand.Aliases.Add("binrary");
         var binaryOutput = CreateOutputArgument();
         exportBinaryCommand.Arguments.Add(binaryOutput);
         exportBinaryCommand.SetAction(parsed => Run(CreateArgs(
