@@ -1,3 +1,4 @@
+using System.CommandLine;
 using System.Text;
 using System.Text.Json.Nodes;
 
@@ -9,13 +10,20 @@ public static class Extensions
     {
         return str != string.Empty ? str : null;
     }
-    
+
     public static void AddIfNotNull(this JsonArray obj, JsonNode? child)
     {
         if (child is not null)
         {
             obj.Add(child);
         }
+    }
+
+    public static string SubcommandHelpValues(this Command command)
+    {
+        var options = string.Join(", ", command.Subcommands.Select(c => c.Name));
+
+        return $" [values: {options}]";
     }
 
     extension(JsonObject obj)
@@ -36,7 +44,7 @@ public static class Extensions
             }
         }
     }
-    
+
     extension(BinaryWriter writer)
     {
         public void WriteString(string? value)

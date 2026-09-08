@@ -74,8 +74,8 @@ internal static class CommandLine
         root.Options.Add(isVerbose);
         root.Options.Add(isQuiet);
 
-        var exportCommand = new Command("export", "Export osu!lazer beatmap data");
-        var exportJsonCommand = new Command("json", "Export beatmap data as JSON");
+        var exportCommand = new Command("export", "Export osu!lazer data");
+        var exportJsonCommand = new Command("json", "Export data as JSON");
         var prettyJson = new Option<bool>("--pretty")
         {
             Description = "Format the JSON with indentation",
@@ -234,7 +234,7 @@ internal static class CommandLine
                 isStream: true))));
 
         exportStreamCommand.Subcommands.Add(exportStreamJsonCommand);
-
+        exportStreamCommand.Description += exportStreamCommand.SubcommandHelpValues();
         var exportBinaryCommand = new Command("binary", "Export beatmap data in binary format");
         var binaryOutput = CreateOutputArgument();
         exportBinaryCommand.Arguments.Add(binaryOutput);
@@ -249,6 +249,7 @@ internal static class CommandLine
         exportCommand.Subcommands.Add(exportJsonCommand);
         exportCommand.Subcommands.Add(exportStreamCommand);
         exportCommand.Subcommands.Add(exportBinaryCommand);
+        exportCommand.Description += exportCommand.SubcommandHelpValues();
         root.Subcommands.Add(exportCommand);
 
         var linkCommand = new Command("link", "Create links or copies for beatmaps");
@@ -334,6 +335,7 @@ internal static class CommandLine
         linkCommand.Subcommands.Add(linkMd5Command);
         linkCommand.Subcommands.Add(linkReplayCommand);
         linkCommand.Subcommands.Add(linkIdCommand);
+        linkCommand.Description += linkCommand.SubcommandHelpValues();
         root.Subcommands.Add(linkCommand);
 
         var diffCommand = new Command("diff", "Link beatmaps that are missing from another osu!lazer installation");
