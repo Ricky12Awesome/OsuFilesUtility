@@ -100,6 +100,14 @@ the specified sections. `--remove-empty` omits selected sections with no data.
 
 `--maps` is an alias for `--beatmaps`, and `--sets` is an alias for `--beatmapsets`.
 
+For newline-delimited JSON streamed to stdout, use the stream command. It supports
+the same section flags, but does not accept an output path, `--pretty`, or
+`--remove-empty`.
+
+```sh
+<executable> export stream json --maps --sets
+```
+
 ---
 This will export into binary format (this is experimental)
 

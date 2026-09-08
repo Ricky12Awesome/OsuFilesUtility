@@ -24,6 +24,7 @@ internal static class CommandLine
         public enum Operation
         {
             ExportJson,
+            ExportJsonStream,
             ExportBinary,
             LinkAll,
             LinkMd5,
@@ -154,10 +155,85 @@ internal static class CommandLine
             parsed.GetValue(jsonOutput),
             jsonSettings: CreateJsonExportSettings(
                 parsed,
-                prettyJson,
-                removeEmptyJson,
                 allExceptJson,
-                jsonFlagOptions))));
+                jsonFlagOptions,
+                isStream: false,
+                pretty: prettyJson,
+                removeEmpty: removeEmptyJson))));
+
+        var exportStreamCommand = new Command("stream", "Stream beatmap data for use by another application");
+        var exportStreamJsonCommand = new Command("json", "Stream beatmap data as newline-delimited JSON");
+        var allExceptStreamJson = new Option<bool>("--all-except")
+        {
+            Description = "Export all except selected flags",
+        };
+        var usersStreamJson = new Option<bool>("--users")
+        {
+            Description = "Export users",
+        };
+        var rulesetsStreamJson = new Option<bool>("--rulesets")
+        {
+            Description = "Export rulesets",
+        };
+        var beatmapsStreamJson = new Option<bool>("--beatmaps", "--maps")
+        {
+            Description = "Export beatmaps",
+        };
+        var beatmapSetsStreamJson = new Option<bool>("--beatmapsets", "--sets")
+        {
+            Description = "Export beatmap sets",
+        };
+        var collectionsStreamJson = new Option<bool>("--collections")
+        {
+            Description = "Export collections",
+        };
+        var scoresStreamJson = new Option<bool>("--scores")
+        {
+            Description = "Export scores",
+        };
+        var skinsStreamJson = new Option<bool>("--skins")
+        {
+            Description = "Export skins",
+        };
+        exportStreamJsonCommand.Options.Add(allExceptStreamJson);
+        exportStreamJsonCommand.Options.Add(usersStreamJson);
+        exportStreamJsonCommand.Options.Add(rulesetsStreamJson);
+        exportStreamJsonCommand.Options.Add(beatmapsStreamJson);
+        exportStreamJsonCommand.Options.Add(beatmapSetsStreamJson);
+        exportStreamJsonCommand.Options.Add(collectionsStreamJson);
+        exportStreamJsonCommand.Options.Add(scoresStreamJson);
+        exportStreamJsonCommand.Options.Add(skinsStreamJson);
+        var streamJsonFlagOptions = new[]
+        {
+            (Option: usersStreamJson, Flag: JsonExporter.ExportFlags.Users),
+            (Option: rulesetsStreamJson, Flag: JsonExporter.ExportFlags.Rulesets),
+            (Option: beatmapsStreamJson, Flag: JsonExporter.ExportFlags.Beatmaps),
+            (Option: beatmapSetsStreamJson, Flag: JsonExporter.ExportFlags.BeatmapSets),
+            (Option: collectionsStreamJson, Flag: JsonExporter.ExportFlags.Collections),
+            (Option: scoresStreamJson, Flag: JsonExporter.ExportFlags.Scores),
+            (Option: skinsStreamJson, Flag: JsonExporter.ExportFlags.Skins),
+        };
+        exportStreamJsonCommand.Validators.Add(commandResult =>
+        {
+            if (commandResult.GetResult(allExceptStreamJson) is not null &&
+                streamJsonFlagOptions.All(option => commandResult.GetResult(option.Option) is null))
+            {
+                commandResult.AddError("--all-except requires at least one export flag to specify the exceptions");
+            }
+        });
+        exportStreamJsonCommand.SetAction(parsed => Run(CreateArgs(
+            parsed,
+            lazerPath,
+            isVerbose,
+            isQuiet,
+            Args.Operation.ExportJsonStream,
+            jsonSettings: CreateJsonExportSettings(
+                parsed,
+                allExceptStreamJson,
+                streamJsonFlagOptions,
+                isStream: true))));
+
+        exportStreamCommand.Subcommands.Add(exportStreamJsonCommand);
 
         var exportBinaryCommand = new Command("binary", "Export beatmap data in binary format");
         // Keep the common typo working while exposing the correctly-spelled command in help.
@@ -173,6 +249,7 @@ internal static class CommandLine
             parsed.GetValue(binaryOutput))));
 
         exportCommand.Subcommands.Add(exportJsonCommand);
+        exportCommand.Subcommands.Add(exportStreamCommand);
         exportCommand.Subcommands.Add(exportBinaryCommand);
         root.Subcommands.Add(exportCommand);
 
@@ -377,10 +454,11 @@ internal static class CommandLine
 
     private static JsonExporter.ExportSettings CreateJsonExportSettings(
         ParseResult parsed,
-        Option<bool> pretty,
-        Option<bool> removeEmpty,
         Option<bool> allExcept,
-        IReadOnlyList<(Option<bool> Option, JsonExporter.ExportFlags Flag)> flagOptions)
+        IReadOnlyList<(Option<bool> Option, JsonExporter.ExportFlags Flag)> flagOptions,
+        bool isStream,
+        Option<bool>? pretty = null,
+        Option<bool>? removeEmpty = null)
     {
         var selectedFlags = flagOptions
             .Where(option => parsed.GetValue(option.Option))
@@ -395,8 +473,9 @@ internal static class CommandLine
         }
 
         return new JsonExporter.ExportSettings(
-            IsPretty: parsed.GetValue(pretty),
-            RemoveEmpty: parsed.GetValue(removeEmpty),
+            IsPretty: pretty is not null && parsed.GetValue(pretty),
+            IsStream: isStream,
+            RemoveEmpty: removeEmpty is not null && parsed.GetValue(removeEmpty),
             Flags: flags);
     }
 
@@ -523,6 +602,9 @@ internal static class CommandLine
             {
                 case Args.Operation.ExportJson:
                     RunExport(api, ExportFormat.Json, args.OutPath, args.JsonExportSettings);
+                    return;
+                case Args.Operation.ExportJsonStream:
+                    api.ExportToJsonStream(args.JsonExportSettings);
                     return;
                 case Args.Operation.ExportBinary:
                     RunExport(api, ExportFormat.Binary, args.OutPath);

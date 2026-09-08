@@ -9,6 +9,7 @@ namespace OsuFilesUtility;
 public class Api
 {
     public Realm Realm { get; private set; }
+    private readonly RealmConfiguration _config;
     public string LazerPath { get; private set; }
     public bool Verbose { get; private set; }
 
@@ -23,16 +24,21 @@ public class Api
         if (!Path.Exists(realmPath)) throw new FileNotFoundException(realmPath);
         if (!Path.Exists(filesPath)) throw new FileNotFoundException(filesPath);
 
-        var config = new RealmConfiguration(realmPath)
+        _config = new RealmConfiguration(realmPath)
         {
             SchemaVersion = 52,
             IsReadOnly = true,
             Schema = RealmSchema.Types
         };
 
-        Realm = Realm.GetInstance(config);
+        Realm = Realm.GetInstance(_config);
         LazerPath = lazerPath;
         Verbose = verbose;
+    }
+
+    public Realm NewRealmInstance()
+    {
+        return Realm.GetInstance(_config);
     }
 
     // https://osu.ppy.sh/wiki/en/Client/Release_stream/Lazer/File_storage
@@ -208,9 +214,14 @@ public class Api
         }
     }
 
+    internal void ExportToJsonStream(JsonExporter.ExportSettings settings)
+    {
+        new JsonExporter(settings, this).ExportStream();
+    }
+
     internal string ExportToJson(JsonExporter.ExportSettings settings)
     {
-        return JsonExporter.Export(this, settings);
+        return new JsonExporter(settings, this).Export();
     }
 
     public void ExportToBinary(BinaryWriter writer)
