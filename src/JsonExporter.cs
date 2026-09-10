@@ -1,7 +1,8 @@
-using System.Collections.Immutable;
+using System.Buffers;
+using System.Globalization;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace OsuFilesUtility;
 
@@ -46,526 +47,408 @@ internal sealed class JsonExporter
 
     public void ExportStream()
     {
-        var tasks = new List<Task>();
-
-        var options = new JsonSerializerOptions
+        if (_settings.Flags == ExportFlags.None)
         {
-            WriteIndented = false,
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        };
+            return;
+        }
+
+        using var output = Console.OpenStandardOutput();
+        using var writer = new Utf8JsonWriter(output, CreateWriterOptions(indented: false, skipValidation: true));
+        var realm = _api.NewRealmInstance();
 
         if (_settings.Flags.HasFlag(ExportFlags.Users))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var realmUser in realm.All<RealmUser>()
+                         .AsEnumerable()
+                         .DistinctBy(item => item.OnlineID))
             {
-                var realm = _api.NewRealmInstance();
-
-                await foreach (var realmUser in realm.All<RealmUser>()
-                                   .ToAsyncEnumerable()
-                                   .DistinctBy(item => item.OnlineID))
-                {
-                    var jsonObject = CreateUser(realmUser);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteUser(writer, realmUser);
+                writer.FlushLine(output);
+            }
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var ruleset in realm.All<Ruleset>().AsEnumerable())
             {
-                var realm = _api.NewRealmInstance();
-                await foreach (var ruleset in realm.All<Ruleset>().ToAsyncEnumerable())
-                {
-                    var jsonObject = CreateRuleset(ruleset);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteRuleset(writer, ruleset);
+                writer.FlushLine(output);
+            }
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Beatmaps))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var beatmap in realm.All<Beatmap>().AsEnumerable())
             {
-                var realm = _api.NewRealmInstance();
-                await foreach (var beatmap in realm.All<Beatmap>().ToAsyncEnumerable())
-                {
-                    var jsonObject = CreateBeatmap(beatmap);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteBeatmap(writer, beatmap);
+                writer.FlushLine(output);
+            }
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.BeatmapSets))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var beatmapSet in realm.All<BeatmapSet>().AsEnumerable())
             {
-                var realm = _api.NewRealmInstance();
-                await foreach (var beatmapSet in realm.All<BeatmapSet>().ToAsyncEnumerable())
-                {
-                    var jsonObject = CreateBeatmapSet(beatmapSet);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteBeatmapSet(writer, beatmapSet);
+                writer.FlushLine(output);
+            }
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Collections))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var beatmapCollection in realm.All<BeatmapCollection>().AsEnumerable())
             {
-                var realm = _api.NewRealmInstance();
-                await foreach (var beatmapCollection in realm.All<BeatmapCollection>().ToAsyncEnumerable())
-                {
-                    var jsonObject = CreateCollection(beatmapCollection);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteCollection(writer, beatmapCollection);
+                writer.FlushLine(output);
+            }
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Scores))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var score in realm.All<Score>().AsEnumerable())
             {
-                var realm = _api.NewRealmInstance();
-                await foreach (var score in realm.All<Score>().ToAsyncEnumerable())
-                {
-                    var jsonObject = CreateScore(score);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteScore(writer, score);
+                writer.FlushLine(output);
+            }
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Skins))
         {
-            tasks.Add(Task.Run(async () =>
+            foreach (var skin in realm.All<Skin>().AsEnumerable())
             {
-                var realm = _api.NewRealmInstance();
-                await foreach (var skin in realm.All<Skin>().ToAsyncEnumerable())
-                {
-                    var jsonObject = CreateSkin(skin);
-                    var json = jsonObject.ToJsonString(options);
-
-                    await Console.Out.WriteLineAsync(json);
-                    await Console.Out.FlushAsync();
-                }
-            }));
+                WriteSkin(writer, skin);
+                writer.FlushLine(output);
+            }
         }
-
-        var all = Task.WhenAll(tasks);
-
-        all.GetAwaiter().GetResult();
     }
 
     public string Export()
     {
-        var root = new JsonObject();
-        var usersRoot = new JsonObject();
-        var rulesetsRoot = new JsonObject();
-        var beatmapsRoot = new JsonObject();
-        var beatmapSetsRoot = new JsonObject();
-        var collectionsRoot = new JsonArray();
-        var scoresRoot = new JsonArray();
-        var skinsRoot = new JsonArray();
+        var output = new ArrayBufferWriter<byte>();
 
-        if (_settings.Flags.HasFlag(ExportFlags.Users))
+        using (var writer = new Utf8JsonWriter(output, CreateWriterOptions(_settings.IsPretty)))
         {
-            var users = _api.Realm.All<RealmUser>()
-                .AsEnumerable()
-                .DistinctBy(item => item.OnlineID) // idky there is duplicate users, so I have to have this
-                .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
+            writer.WriteStartObject();
 
-            AddUsers(usersRoot, users);
+            if (_settings.Flags.HasFlag(ExportFlags.Users))
+            {
+                var users = _api.Realm.All<RealmUser>()
+                    .AsEnumerable()
+                    .DistinctBy(item => item.OnlineID)
+                    .OrderBy(item => item.OnlineID);
+
+                writer.WriteObjectSection("Users", users, _settings.RemoveEmpty, WriteUserEntry);
+            }
+
+            if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
+            {
+                var rulesets = _api.Realm.All<Ruleset>()
+                    .AsEnumerable()
+                    .OrderBy(item => item.OnlineID);
+
+                writer.WriteObjectSection("Rulesets", rulesets, _settings.RemoveEmpty, WriteRulesetEntry);
+            }
+
+            if (_settings.Flags.HasFlag(ExportFlags.Beatmaps))
+            {
+                var beatmaps = _api.Realm.All<Beatmap>()
+                    .AsEnumerable()
+                    .OrderBy(item => item.MD5Hash);
+
+                writer.WriteObjectSection("Beatmaps", beatmaps, _settings.RemoveEmpty, WriteBeatmapEntry);
+            }
+
+            if (_settings.Flags.HasFlag(ExportFlags.BeatmapSets))
+            {
+                var beatmapSets = _api.Realm.All<BeatmapSet>()
+                    .AsEnumerable()
+                    .OrderBy(item => item.OnlineID);
+
+                writer.WriteObjectSection("BeatmapSets", beatmapSets, _settings.RemoveEmpty, WriteBeatmapSetEntry);
+            }
+
+            if (_settings.Flags.HasFlag(ExportFlags.Collections))
+            {
+                var collections = _api.Realm.All<BeatmapCollection>().AsEnumerable();
+                writer.WriteArraySection("Collections", collections, _settings.RemoveEmpty, WriteCollection);
+            }
+
+            if (_settings.Flags.HasFlag(ExportFlags.Scores))
+            {
+                var scores = _api.Realm.All<Score>().AsEnumerable();
+                writer.WriteArraySection("Scores", scores, _settings.RemoveEmpty, WriteScore);
+            }
+
+            if (_settings.Flags.HasFlag(ExportFlags.Skins))
+            {
+                var skins = _api.Realm.All<Skin>().AsEnumerable();
+                writer.WriteArraySection("Skins", skins, _settings.RemoveEmpty, WriteSkin);
+            }
+
+            writer.WriteEndObject();
+            writer.Flush();
         }
 
-        if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
+        return Encoding.UTF8.GetString(output.WrittenSpan);
+    }
+
+    private static JsonWriterOptions CreateWriterOptions(bool indented, bool skipValidation = false)
+    {
+        return new JsonWriterOptions
         {
-            var rulesets = _api.Realm.All<Ruleset>()
-                .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
-
-            AddRulesets(rulesetsRoot, rulesets);
-        }
-
-        if (_settings.Flags.HasFlag(ExportFlags.Beatmaps))
-        {
-            var beatmaps = _api.Realm.All<Beatmap>()
-                .ToImmutableSortedDictionary(key => key.MD5Hash, value => value);
-
-            AddBeatmaps(beatmapsRoot, beatmaps);
-        }
-
-        if (_settings.Flags.HasFlag(ExportFlags.BeatmapSets))
-        {
-            var beatmapsets = _api.Realm.All<BeatmapSet>()
-                .ToImmutableSortedDictionary(key => key.OnlineID, value => value);
-
-            AddBeatmapSets(beatmapSetsRoot, beatmapsets);
-        }
-
-        if (_settings.Flags.HasFlag(ExportFlags.Collections))
-        {
-            var collections = _api.Realm.All<BeatmapCollection>().ToImmutableList();
-
-            AddCollections(collectionsRoot, collections);
-        }
-
-        if (_settings.Flags.HasFlag(ExportFlags.Scores))
-        {
-            var scores = _api.Realm.All<Score>().ToImmutableList();
-
-            AddScores(scoresRoot, scores);
-        }
-
-        if (_settings.Flags.HasFlag(ExportFlags.Skins))
-        {
-            var skins = _api.Realm.All<Skin>().ToImmutableList();
-
-            AddSkins(skinsRoot, skins);
-        }
-
-        if (!_settings.RemoveEmpty || usersRoot.Count > 0)
-            root.Add("Users", usersRoot);
-
-        if (!_settings.RemoveEmpty || rulesetsRoot.Count > 0)
-            root.Add("Rulesets", rulesetsRoot);
-
-        if (!_settings.RemoveEmpty || beatmapsRoot.Count > 0)
-            root.Add("Beatmaps", beatmapsRoot);
-
-        if (!_settings.RemoveEmpty || beatmapSetsRoot.Count > 0)
-            root.Add("BeatmapSets", beatmapSetsRoot);
-
-        if (!_settings.RemoveEmpty || collectionsRoot.Count > 0)
-            root.Add("Collections", collectionsRoot);
-
-        if (!_settings.RemoveEmpty || scoresRoot.Count > 0)
-            root.Add("Scores", scoresRoot);
-
-        if (!_settings.RemoveEmpty || skinsRoot.Count > 0)
-            root.Add("Skins", skinsRoot);
-
-        return root.ToJsonString(new JsonSerializerOptions
-        {
-            WriteIndented = _settings.IsPretty,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        });
+            Indented = indented,
+            SkipValidation = skipValidation,
+        };
     }
 
-    private void AddUsers(JsonObject usersRoot, IEnumerable<KeyValuePair<long, RealmUser>> users)
+    private void WriteUserEntry(Utf8JsonWriter writer, RealmUser user)
     {
-        foreach (var (id, user) in users)
-        {
-            var userRoot = CreateUser(user);
-
-            usersRoot.Add($"{id}", userRoot);
-        }
+        writer.WritePropertyName(user.OnlineID.ToString(CultureInfo.InvariantCulture));
+        WriteUser(writer, user);
     }
 
-    private JsonObject CreateUser(RealmUser user)
+    private void WriteRulesetEntry(Utf8JsonWriter writer, Ruleset ruleset)
     {
-        var userRoot = new JsonObject();
+        writer.WritePropertyName(ruleset.OnlineID.ToString(CultureInfo.InvariantCulture));
+        WriteRuleset(writer, ruleset);
+    }
+
+    private void WriteBeatmapEntry(Utf8JsonWriter writer, Beatmap beatmap)
+    {
+        writer.WritePropertyName(beatmap.MD5Hash);
+        WriteBeatmap(writer, beatmap);
+    }
+
+    private void WriteBeatmapSetEntry(Utf8JsonWriter writer, BeatmapSet beatmapSet)
+    {
+        writer.WritePropertyName(beatmapSet.OnlineID.ToString(CultureInfo.InvariantCulture));
+        WriteBeatmapSet(writer, beatmapSet);
+    }
+
+    private void WriteUser(Utf8JsonWriter writer, RealmUser user)
+    {
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            userRoot["Type"] = "User";
+            writer.WriteString("Type", "User");
         }
 
-        userRoot.AddIfNotNull("OnlineID", user.OnlineID);
-        userRoot.AddIfNotNull("Username", user.Username);
-        userRoot.AddIfNotNull("CountryCode", user.CountryCode);
+        writer.WriteNumber("OnlineID", user.OnlineID);
+        writer.WriteIfNotNull("Username", user.Username);
+        writer.WriteIfNotNull("CountryCode", user.CountryCode);
 
-        return userRoot;
+        writer.WriteEndObject();
     }
 
-    private void AddRulesets(JsonObject rulesetsRoot, IEnumerable<KeyValuePair<long, Ruleset>> rulesets)
+    private void WriteRuleset(Utf8JsonWriter writer, Ruleset ruleset)
     {
-        foreach (var (id, ruleset) in rulesets)
-        {
-            var rulesetRoot = CreateRuleset(ruleset);
-
-            rulesetsRoot.Add($"{id}", rulesetRoot);
-        }
-    }
-
-    private JsonObject CreateRuleset(Ruleset ruleset)
-    {
-        var rulesetRoot = new JsonObject();
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            rulesetRoot["Type"] = "Ruleset";
+            writer.WriteString("Type", "Ruleset");
         }
 
-        rulesetRoot.AddIfNotNull("ShortName", ruleset.ShortName);
-        rulesetRoot.AddIfNotNull("OnlineID", ruleset.OnlineID);
-        rulesetRoot.AddIfNotNull("Name", ruleset.Name);
-        rulesetRoot.AddIfNotNull("InstantiationInfo", ruleset.InstantiationInfo);
-        rulesetRoot.AddIfNotNull("LastAppliedDifficultyVersion", ruleset.LastAppliedDifficultyVersion);
-        rulesetRoot.AddIfNotNull("Available", ruleset.Available);
+        writer.WriteIfNotNull("ShortName", ruleset.ShortName);
+        writer.WriteNumber("OnlineID", ruleset.OnlineID);
+        writer.WriteIfNotNull("Name", ruleset.Name);
+        writer.WriteIfNotNull("InstantiationInfo", ruleset.InstantiationInfo);
+        writer.WriteNumber("LastAppliedDifficultyVersion", ruleset.LastAppliedDifficultyVersion);
+        writer.WriteBoolean("Available", ruleset.Available);
 
-        return rulesetRoot;
+        writer.WriteEndObject();
     }
 
-    private void AddBeatmaps(JsonObject beatmapsRoot, IEnumerable<KeyValuePair<string, Beatmap>> beatmaps)
+    private void WriteBeatmap(Utf8JsonWriter writer, Beatmap beatmap)
     {
-        foreach (var (md5, beatmap) in beatmaps)
-        {
-            var beatmapRoot = CreateBeatmap(beatmap);
-
-            beatmapsRoot.Add(md5, beatmapRoot);
-        }
-    }
-
-    private JsonObject CreateBeatmap(Beatmap beatmap)
-    {
-        var beatmapRoot = new JsonObject();
-        var metadataRoot = new JsonObject();
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            beatmapRoot["Type"] = "Beatmap";
+            writer.WriteString("Type", "Beatmap");
         }
 
-        metadataRoot.AddIfNotNull("Title", beatmap.Metadata.Title);
-        metadataRoot.AddIfNotNull("TitleUnicode", beatmap.Metadata.TitleUnicode);
-        metadataRoot.AddIfNotNull("Artist", beatmap.Metadata.Artist);
-        metadataRoot.AddIfNotNull("ArtistUnicode", beatmap.Metadata.ArtistUnicode);
-        metadataRoot.AddIfNotNull("Author", beatmap.Metadata.Author.OnlineID);
-        metadataRoot.AddIfNotNull("Source", beatmap.Metadata.Source);
-        metadataRoot.AddIfNotNull("Tags", beatmap.Metadata.Tags);
-        metadataRoot.AddIfNotNull("PreviewTime", beatmap.Metadata.PreviewTime);
-        metadataRoot.AddIfNotNull("AudioFile", beatmap.Metadata.AudioFile);
-        metadataRoot.AddIfNotNull("BackgroundFile", beatmap.Metadata.BackgroundFile);
+        writer.WriteIfNotNull("DifficultyName", beatmap.DifficultyName);
+        writer.WriteNumber("Ruleset", beatmap.Ruleset.OnlineID);
 
-        var userTags = new JsonArray();
+        writer.WritePropertyName("Difficulty");
+        writer.WriteStartObject();
+        writer.WriteNumber("DrainRate", beatmap.Difficulty.DrainRate);
+        writer.WriteNumber("CircleSize", beatmap.Difficulty.CircleSize);
+        writer.WriteNumber("OverallDifficulty", beatmap.Difficulty.OverallDifficulty);
+        writer.WriteNumber("ApproachRate", beatmap.Difficulty.ApproachRate);
+        writer.WriteNumber("SliderMultiplier", beatmap.Difficulty.SliderMultiplier);
+        writer.WriteNumber("SliderTickRate", beatmap.Difficulty.SliderTickRate);
+        writer.WriteEndObject();
+
+        writer.WritePropertyName("Metadata");
+        writer.WriteStartObject();
+        writer.WriteIfNotNull("Title", beatmap.Metadata.Title);
+        writer.WriteIfNotNull("TitleUnicode", beatmap.Metadata.TitleUnicode);
+        writer.WriteIfNotNull("Artist", beatmap.Metadata.Artist);
+        writer.WriteIfNotNull("ArtistUnicode", beatmap.Metadata.ArtistUnicode);
+        writer.WriteNumber("Author", beatmap.Metadata.Author.OnlineID);
+        writer.WriteIfNotNull("Source", beatmap.Metadata.Source);
+        writer.WriteIfNotNull("Tags", beatmap.Metadata.Tags);
+        writer.WriteNumber("PreviewTime", beatmap.Metadata.PreviewTime);
+        writer.WriteIfNotNull("AudioFile", beatmap.Metadata.AudioFile);
+        writer.WriteIfNotNull("BackgroundFile", beatmap.Metadata.BackgroundFile);
+
+        writer.WritePropertyName("UserTags");
+        writer.WriteStartArray();
         foreach (var tag in beatmap.Metadata.UserTags)
         {
-            userTags.Add(tag);
+            writer.WriteStringValue(tag);
         }
 
-        metadataRoot.AddIfNotNull("UserTags", userTags);
-        beatmapRoot.AddIfNotNull("DifficultyName", beatmap.DifficultyName);
-        beatmapRoot.AddIfNotNull("Ruleset", beatmap.Ruleset.OnlineID);
-        beatmapRoot.AddIfNotNull("Difficulty", new JsonObject
-        {
-            ["DrainRate"] = beatmap.Difficulty.DrainRate,
-            ["CircleSize"] = beatmap.Difficulty.CircleSize,
-            ["OverallDifficulty"] = beatmap.Difficulty.OverallDifficulty,
-            ["ApproachRate"] = beatmap.Difficulty.ApproachRate,
-            ["SliderMultiplier"] = beatmap.Difficulty.SliderMultiplier,
-            ["SliderTickRate"] = beatmap.Difficulty.SliderTickRate,
-        });
+        writer.WriteEndArray();
+        writer.WriteEndObject();
 
-        beatmapRoot.AddIfNotNull("Metadata", metadataRoot);
-        beatmapRoot.AddIfNotNull("UserSettings", new JsonObject
-        {
-            ["Offset"] = beatmap.UserSettings.Offset
-        });
+        writer.WritePropertyName("UserSettings");
+        writer.WriteStartObject();
+        writer.WriteNumber("Offset", beatmap.UserSettings.Offset);
+        writer.WriteEndObject();
 
-        beatmapRoot.AddIfNotNull("BeatmapSet", beatmap.BeatmapSet.OnlineID);
-        beatmapRoot.AddIfNotNull("Status", beatmap.Status);
-        beatmapRoot.AddIfNotNull("OnlineID", beatmap.OnlineID);
-        beatmapRoot.AddIfNotNull("Length", beatmap.Length);
-        beatmapRoot.AddIfNotNull("BPM", beatmap.BPM);
-        beatmapRoot.AddIfNotNull("Hash", beatmap.Hash);
-        beatmapRoot.AddIfNotNull("StarRating", beatmap.StarRating);
-        beatmapRoot.AddIfNotNull("MD5Hash", beatmap.MD5Hash);
-        beatmapRoot.AddIfNotNull("OnlineMD5Hash", beatmap.OnlineMD5Hash);
-        beatmapRoot.AddIfNotNull("LastLocalUpdate", beatmap.LastLocalUpdate);
-        beatmapRoot.AddIfNotNull("LastOnlineUpdate", beatmap.LastOnlineUpdate);
-        beatmapRoot.AddIfNotNull("Hidden", beatmap.Hidden);
-        beatmapRoot.AddIfNotNull("EndTimeObjectCount", beatmap.EndTimeObjectCount);
-        beatmapRoot.AddIfNotNull("TotalObjectCount", beatmap.TotalObjectCount);
-        beatmapRoot.AddIfNotNull("LastPlayed", beatmap.LastPlayed);
-        beatmapRoot.AddIfNotNull("BeatDivisor", beatmap.BeatDivisor);
-        beatmapRoot.AddIfNotNull("EditorTimestamp", beatmap.EditorTimestamp);
+        writer.WriteNumber("BeatmapSet", beatmap.BeatmapSet.OnlineID);
+        writer.WriteNumber("Status", beatmap.Status);
+        writer.WriteNumber("OnlineID", beatmap.OnlineID);
+        writer.WriteNumber("Length", beatmap.Length);
+        writer.WriteNumber("BPM", beatmap.BPM);
+        writer.WriteIfNotNull("Hash", beatmap.Hash);
+        writer.WriteNumber("StarRating", beatmap.StarRating);
+        writer.WriteIfNotNull("MD5Hash", beatmap.MD5Hash);
+        writer.WriteIfNotNull("OnlineMD5Hash", beatmap.OnlineMD5Hash);
+        writer.WriteIfNotNull("LastLocalUpdate", beatmap.LastLocalUpdate);
+        writer.WriteIfNotNull("LastOnlineUpdate", beatmap.LastOnlineUpdate);
+        writer.WriteBoolean("Hidden", beatmap.Hidden);
+        writer.WriteNumber("EndTimeObjectCount", beatmap.EndTimeObjectCount);
+        writer.WriteNumber("TotalObjectCount", beatmap.TotalObjectCount);
+        writer.WriteIfNotNull("LastPlayed", beatmap.LastPlayed);
+        writer.WriteNumber("BeatDivisor", beatmap.BeatDivisor);
+        writer.WriteIfNotNull("EditorTimestamp", beatmap.EditorTimestamp);
 
-        return beatmapRoot;
+        writer.WriteEndObject();
     }
 
-    private void AddBeatmapSets(JsonObject beatmapSetsRoot,
-        IEnumerable<KeyValuePair<long, BeatmapSet>> beatmapsets)
+    private void WriteBeatmapSet(Utf8JsonWriter writer, BeatmapSet beatmapSet)
     {
-        foreach (var (id, beatmapset) in beatmapsets)
-        {
-            var beatmapSetRoot = CreateBeatmapSet(beatmapset);
-
-            beatmapSetsRoot.Add($"{id}", beatmapSetRoot);
-        }
-    }
-
-    private JsonObject CreateBeatmapSet(BeatmapSet beatmapset)
-    {
-        var beatmapSetRoot = new JsonObject();
-        var files = CreateFilesObject(beatmapset.Files);
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            beatmapSetRoot["Type"] = "BeatmapSet";
+            writer.WriteString("Type", "BeatmapSet");
         }
 
-        beatmapSetRoot.Add("OnlineID", beatmapset.OnlineID);
-        beatmapSetRoot.Add("Files", files);
+        writer.WriteNumber("OnlineID", beatmapSet.OnlineID);
+        writer.WritePropertyName("Files");
+        writer.WriteFiles(beatmapSet.Files);
 
-        var beatmapsetBeatmaps = new JsonArray();
-        foreach (var beatmapsetBeatmap in beatmapset.Beatmaps)
+        writer.WritePropertyName("Beatmaps");
+        writer.WriteStartArray();
+        foreach (var beatmap in beatmapSet.Beatmaps)
         {
-            beatmapsetBeatmaps.Add(beatmapsetBeatmap.MD5Hash);
+            writer.WriteStringValue(beatmap.MD5Hash);
         }
 
-        beatmapSetRoot.Add("Beatmaps", beatmapsetBeatmaps);
-
-        return beatmapSetRoot;
+        writer.WriteEndArray();
+        writer.WriteEndObject();
     }
 
-    private void AddScores(JsonArray scoresRoot, IEnumerable<Score> scores)
+    private void WriteScore(Utf8JsonWriter writer, Score score)
     {
-        foreach (var score in scores)
-        {
-            var scoreRoot = CreateScore(score);
-
-            scoresRoot.Add(scoreRoot);
-        }
-    }
-
-    private JsonObject CreateScore(Score score)
-    {
-        var scoreRoot = new JsonObject();
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            scoreRoot["Type"] = "Score";
+            writer.WriteString("Type", "Score");
         }
 
         if (score.BeatmapInfo is not null)
         {
-            scoreRoot.AddIfNotNull("BeatmapInfo", score.BeatmapInfo.MD5Hash);
+            writer.WriteIfNotNull("BeatmapInfo", score.BeatmapInfo.MD5Hash);
         }
 
-        scoreRoot.AddIfNotNull("ClientVersion", score.ClientVersion);
-        scoreRoot.AddIfNotNull("BeatmapHash", score.BeatmapHash);
-        scoreRoot.AddIfNotNull("Ruleset", score.Ruleset.OnlineID);
-        scoreRoot.AddIfNotNull("Files", CreateFilesObject(score.Files));
-        scoreRoot.AddIfNotNull("Hash", score.Hash);
-        scoreRoot.AddIfNotNull("DeletePending", score.DeletePending);
-        scoreRoot.AddIfNotNull("TotalScore", score.TotalScore);
-        scoreRoot.AddIfNotNull("TotalScoreWithoutMods", score.TotalScoreWithoutMods);
-        scoreRoot.AddIfNotNull("TotalScoreVersion", score.TotalScoreVersion);
-        scoreRoot.AddIfNotNull("LegacyTotalScore", score.LegacyTotalScore);
-        scoreRoot.AddIfNotNull("BackgroundReprocessingFailed", score.BackgroundReprocessingFailed);
-        scoreRoot.AddIfNotNull("MaxCombo", score.MaxCombo);
-        scoreRoot.AddIfNotNull("Accuracy", score.Accuracy);
-        scoreRoot.AddIfNotNull("Date", score.Date);
-        scoreRoot.AddIfNotNull("PP", score.PP);
-        scoreRoot.AddIfNotNull("OnlineID", score.OnlineID);
-        scoreRoot.AddIfNotNull("LegacyOnlineID", score.LegacyOnlineID);
-        scoreRoot.AddIfNotNull("User", score.User.OnlineID);
-        scoreRoot.AddIfNotNull("Mods", score.Mods);
-        scoreRoot.AddIfNotNull("Statistics", score.Statistics);
-        scoreRoot.AddIfNotNull("MaximumStatistics", score.MaximumStatistics);
-        scoreRoot.AddIfNotNull("Rank", score.Rank);
-        scoreRoot.AddIfNotNull("Combo", score.Combo);
-        scoreRoot.AddIfNotNull("IsLegacyScore", score.IsLegacyScore);
+        writer.WriteIfNotNull("ClientVersion", score.ClientVersion);
+        writer.WriteIfNotNull("BeatmapHash", score.BeatmapHash);
+        writer.WriteNumber("Ruleset", score.Ruleset.OnlineID);
+        writer.WritePropertyName("Files");
+        writer.WriteFiles(score.Files);
+        writer.WriteIfNotNull("Hash", score.Hash);
+        writer.WriteBoolean("DeletePending", score.DeletePending);
+        writer.WriteNumber("TotalScore", score.TotalScore);
+        writer.WriteNumber("TotalScoreWithoutMods", score.TotalScoreWithoutMods);
+        writer.WriteNumber("TotalScoreVersion", score.TotalScoreVersion);
+        writer.WriteIfNotNull("LegacyTotalScore", score.LegacyTotalScore);
+        writer.WriteBoolean("BackgroundReprocessingFailed", score.BackgroundReprocessingFailed);
+        writer.WriteNumber("MaxCombo", score.MaxCombo);
+        writer.WriteNumber("Accuracy", score.Accuracy);
+        writer.WriteDateTime("Date", score.Date);
+        writer.WriteIfNotNull("PP", score.PP);
+        writer.WriteNumber("OnlineID", score.OnlineID);
+        writer.WriteNumber("LegacyOnlineID", score.LegacyOnlineID);
+        writer.WriteNumber("User", score.User.OnlineID);
+        writer.WriteIfNotNull("Mods", score.Mods);
+        writer.WriteIfNotNull("Statistics", score.Statistics);
+        writer.WriteIfNotNull("MaximumStatistics", score.MaximumStatistics);
+        writer.WriteNumber("Rank", score.Rank);
+        writer.WriteNumber("Combo", score.Combo);
+        writer.WriteBoolean("IsLegacyScore", score.IsLegacyScore);
 
-        var pauses = new JsonArray();
+        writer.WritePropertyName("Pauses");
+        writer.WriteStartArray();
         foreach (var pause in score.Pauses)
         {
-            pauses.Add(pause);
+            writer.WriteNumberValue(pause);
         }
 
-        scoreRoot.AddIfNotNull("Pauses", pauses);
-
-        return scoreRoot;
+        writer.WriteEndArray();
+        writer.WriteEndObject();
     }
 
-    private void AddCollections(JsonArray collectionsRoot, IEnumerable<BeatmapCollection> collections)
+    private void WriteCollection(Utf8JsonWriter writer, BeatmapCollection collection)
     {
-        foreach (var collection in collections)
-        {
-            var collectionRoot = CreateCollection(collection);
-
-            collectionsRoot.Add(collectionRoot);
-        }
-    }
-
-    private JsonObject CreateCollection(BeatmapCollection collection)
-    {
-        var collectionRoot = new JsonObject();
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            collectionRoot["Type"] = "Collection";
+            writer.WriteString("Type", "Collection");
         }
 
-        collectionRoot.AddIfNotNull("Name", collection.Name);
+        writer.WriteIfNotNull("Name", collection.Name);
 
-        var hashes = new JsonArray();
+        writer.WritePropertyName("BeatmapMD5Hashes");
+        writer.WriteStartArray();
         foreach (var hash in collection.BeatmapMD5Hashes)
         {
-            hashes.Add(hash);
+            writer.WriteStringValue(hash);
         }
 
-        collectionRoot.AddIfNotNull("BeatmapMD5Hashes", hashes);
-        collectionRoot.AddIfNotNull("LastModified", collection.LastModified);
-
-        return collectionRoot;
+        writer.WriteEndArray();
+        writer.WriteDateTime("LastModified", collection.LastModified);
+        writer.WriteEndObject();
     }
 
-    private void AddSkins(JsonArray skinsRoot, IEnumerable<Skin> skins)
+    private void WriteSkin(Utf8JsonWriter writer, Skin skin)
     {
-        foreach (var skin in skins)
-        {
-            var skinRoot = CreateSkin(skin);
-
-            skinsRoot.Add(skinRoot);
-        }
-    }
-
-    private JsonObject CreateSkin(Skin skin)
-    {
-        var skinRoot = new JsonObject();
+        writer.WriteStartObject();
 
         if (_settings.IsStream)
         {
-            skinRoot["Type"] = "Skin";
+            writer.WriteString("Type", "Skin");
         }
 
-        skinRoot.AddIfNotNull("Name", skin.Name);
-        skinRoot.AddIfNotNull("Creator", skin.Creator);
-        skinRoot.AddIfNotNull("InstantiationInfo", skin.InstantiationInfo);
-        skinRoot.AddIfNotNull("Hash", skin.Hash);
-        skinRoot.AddIfNotNull("Protected", skin.Protected);
-        skinRoot.AddIfNotNull("Files", CreateFilesObject(skin.Files));
-        skinRoot.AddIfNotNull("DeletePending", skin.DeletePending);
+        writer.WriteIfNotNull("Name", skin.Name);
+        writer.WriteIfNotNull("Creator", skin.Creator);
+        writer.WriteIfNotNull("InstantiationInfo", skin.InstantiationInfo);
+        writer.WriteIfNotNull("Hash", skin.Hash);
+        writer.WriteBoolean("Protected", skin.Protected);
+        writer.WritePropertyName("Files");
+        writer.WriteFiles(skin.Files);
+        writer.WriteBoolean("DeletePending", skin.DeletePending);
 
-        return skinRoot;
+        writer.WriteEndObject();
     }
 
-    private static JsonObject CreateFilesObject(IEnumerable<RealmNamedFileUsage> files)
-    {
-        var result = new JsonObject();
-        foreach (var file in files)
-        {
-            result[file.Filename] = file.File.Hash;
-        }
-
-        return result;
-    }
 }
