@@ -1,17 +1,14 @@
 using System.Buffers;
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using Realms;
 
 namespace OsuFilesUtility;
 
 internal sealed class JsonExporter
 {
-    private const int StreamBatchSize = 128;
-    private const int MaxStreamParallelism = 8;
-
     private readonly ExportSettings _settings;
     private readonly Api _api;
 
@@ -57,158 +54,131 @@ internal sealed class JsonExporter
         }
 
         using var output = Console.OpenStandardOutput();
-        var realm = _api.NewRealmInstance();
-        using var batches = CreateStreamBatches(realm).GetEnumerator();
-        var pending = new Queue<Task<ArrayBufferWriter<byte>>>();
-        var parallelism = Math.Clamp(Environment.ProcessorCount, 1, MaxStreamParallelism);
+        using var writer = new Utf8JsonWriter(
+            output,
+            CreateWriterOptions(indented: false, skipValidation: true)
+        );
 
-        try
-        {
-            while (pending.Count < parallelism && batches.MoveNext())
-            {
-                pending.Enqueue(Task.Run(batches.Current));
-            }
+        using var realm = _api.NewRealmInstance().Freeze();
+        var outputLock = new object();
+        var tasks = new List<Task>(BitOperations.PopCount((uint)ExportFlags.All));
 
-            while (pending.TryDequeue(out var pendingBatch))
-            {
-                var buffer = pendingBatch.GetAwaiter().GetResult();
-                output.Write(buffer.WrittenSpan);
-
-                if (batches.MoveNext())
-                {
-                    pending.Enqueue(Task.Run(batches.Current));
-                }
-            }
-        }
-        catch
-        {
-            try
-            {
-                Task.WhenAll(pending).GetAwaiter().GetResult();
-            }
-            catch
-            {
-                // Preserve the exception that stopped the export.
-            }
-
-            throw;
-        }
-
-        output.Flush();
-    }
-
-    private IEnumerable<Func<ArrayBufferWriter<byte>>> CreateStreamBatches(Realm realm)
-    {
         if (_settings.Flags.HasFlag(ExportFlags.Users))
         {
-            var users = realm.All<RealmUser>()
-                .Freeze()
-                .AsEnumerable()
-                .DistinctBy(item => item.OnlineID)
-                .ToArray();
-
-            foreach (var batch in CreateStreamBatches(users, WriteUser))
-            {
-                yield return batch;
-            }
+            tasks.Add(WriteStream(
+                realm.All<RealmUser>(),
+                output,
+                writer,
+                outputLock,
+                WriteUser
+            ));
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
         {
-            var rulesets = realm.All<Ruleset>().Freeze().ToArray();
-
-            foreach (var batch in CreateStreamBatches(rulesets, WriteRuleset))
-            {
-                yield return batch;
-            }
+            tasks.Add(WriteStream(
+                realm.All<Ruleset>(),
+                output,
+                writer,
+                outputLock,
+                WriteRuleset
+            ));
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Beatmaps))
         {
-            var beatmaps = realm.All<Beatmap>().Freeze().ToArray();
-
-            foreach (var batch in CreateStreamBatches(beatmaps, WriteBeatmap))
-            {
-                yield return batch;
-            }
+            tasks.Add(WriteStream(
+                realm.All<Beatmap>(),
+                output,
+                writer,
+                outputLock,
+                WriteBeatmap
+            ));
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.BeatmapSets))
         {
-            var beatmapSets = realm.All<BeatmapSet>().Freeze().ToArray();
-
-            foreach (var batch in CreateStreamBatches(beatmapSets, WriteBeatmapSet))
-            {
-                yield return batch;
-            }
+            tasks.Add(WriteStream(
+                realm.All<BeatmapSet>(),
+                output,
+                writer,
+                outputLock,
+                WriteBeatmapSet
+            ));
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Collections))
         {
-            var collections = realm.All<BeatmapCollection>().Freeze().ToArray();
-
-            foreach (var batch in CreateStreamBatches(collections, WriteCollection))
-            {
-                yield return batch;
-            }
+            tasks.Add(WriteStream(
+                realm.All<BeatmapCollection>(),
+                output,
+                writer,
+                outputLock,
+                WriteCollection
+            ));
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Scores))
         {
-            var scores = realm.All<Score>().Freeze().ToArray();
-
-            foreach (var batch in CreateStreamBatches(scores, WriteScore))
-            {
-                yield return batch;
-            }
+            tasks.Add(WriteStream(
+                realm.All<Score>(),
+                output,
+                writer,
+                outputLock,
+                WriteScore
+            ));
         }
 
         if (_settings.Flags.HasFlag(ExportFlags.Skins))
         {
-            var skins = realm.All<Skin>().Freeze().ToArray();
+            tasks.Add(WriteStream(
+                realm.All<Skin>(),
+                output,
+                writer,
+                outputLock,
+                WriteSkin
+            ));
+        }
 
-            foreach (var batch in CreateStreamBatches(skins, WriteSkin))
+        Task.WhenAll(tasks).GetAwaiter().GetResult();
+        output.Flush();
+    }
+
+    private static Task WriteStream<T>(
+        IEnumerable<T> items,
+        Stream output,
+        Utf8JsonWriter _, // Testing
+        object outputLock,
+        Action<Utf8JsonWriter, T> writeItem)
+    {
+        return Task.Run(() =>
+        {
+            // var buffer = new ArrayBufferWriter<byte>(1024 * 1024);
+
+            using var writer = new Utf8JsonWriter(
+                output,
+                CreateWriterOptions(indented: false, skipValidation: true)
+            );
+
+            foreach (var item in items)
             {
-                yield return batch;
+                writeItem(writer, item);
+
+                lock (outputLock)
+                {
+                    writer.Flush();
+                    // var ln = (byte)'\n';
+                    // output.Write(new ReadOnlySpan<byte>(ref ln));
+                    output.WriteByte((byte) '\n');
+                    writer.Reset(output);
+                }
             }
-        }
-    }
+            
+            
 
-    private static IEnumerable<Func<ArrayBufferWriter<byte>>> CreateStreamBatches<T>(
-        T[] items,
-        Action<Utf8JsonWriter, T> writeItem)
-    {
-        for (var start = 0; start < items.Length; start += StreamBatchSize)
-        {
-            var batchStart = start;
-            var batchCount = Math.Min(StreamBatchSize, items.Length - batchStart);
-            yield return () => SerializeStreamBatch(items, batchStart, batchCount, writeItem);
-        }
-    }
-
-    private static ArrayBufferWriter<byte> SerializeStreamBatch<T>(
-        T[] items,
-        int start,
-        int count,
-        Action<Utf8JsonWriter, T> writeItem)
-    {
-        var output = new ArrayBufferWriter<byte>();
-        using var writer = new Utf8JsonWriter(
-            output,
-            CreateWriterOptions(indented: false, skipValidation: true));
-        var end = start + count;
-
-        for (var i = start; i < end; i++)
-        {
-            writeItem(writer, items[i]);
             writer.Flush();
-
-            output.GetSpan(1)[0] = (byte)'\n';
-            output.Advance(1);
-            writer.Reset(output);
-        }
-
-        return output;
+            // output.Write(buffer.WrittenSpan);
+        });
     }
 
     public string Export()
@@ -539,5 +509,4 @@ internal sealed class JsonExporter
 
         writer.WriteEndObject();
     }
-
 }
