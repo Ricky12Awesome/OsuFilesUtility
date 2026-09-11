@@ -46,120 +46,203 @@ internal sealed class JsonExporter
         _api = api;
     }
 
+
     public void ExportStream()
     {
         if (_settings.Flags == ExportFlags.None)
-        {
             return;
-        }
 
-        using var output = Console.OpenStandardOutput();
-        using var realm = _api.NewRealmInstance().Freeze();
-        var outputLock = new object();
-        var tasks = new List<Task>(BitOperations.PopCount((uint)ExportFlags.All));
+        // var processingCount = Environment.ProcessorCount ;
+        var processingCount = BitOperations.PopCount((uint)ExportFlags.All);
+
+        var all = Enumerable.Empty<object>().AsQueryable();
 
         if (_settings.Flags.HasFlag(ExportFlags.Users))
-        {
-            tasks.Add(WriteStream(
-                realm.All<RealmUser>(),
-                output,
-                outputLock,
-                WriteUser
-            ));
-        }
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<RealmUser>());
 
         if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
-        {
-            tasks.Add(WriteStream(
-                realm.All<Ruleset>(),
-                output,
-                outputLock,
-                WriteRuleset
-            ));
-        }
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<Ruleset>());
 
         if (_settings.Flags.HasFlag(ExportFlags.Beatmaps))
-        {
-            tasks.Add(WriteStream(
-                realm.All<Beatmap>(),
-                output,
-                outputLock,
-                WriteBeatmap
-            ));
-        }
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<Beatmap>());
 
         if (_settings.Flags.HasFlag(ExportFlags.BeatmapSets))
-        {
-            tasks.Add(WriteStream(
-                realm.All<BeatmapSet>(),
-                output,
-                outputLock,
-                WriteBeatmapSet
-            ));
-        }
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<BeatmapSet>());
 
         if (_settings.Flags.HasFlag(ExportFlags.Collections))
-        {
-            tasks.Add(WriteStream(
-                realm.All<BeatmapCollection>(),
-                output,
-                outputLock,
-                WriteCollection
-            ));
-        }
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<BeatmapCollection>());
 
         if (_settings.Flags.HasFlag(ExportFlags.Scores))
-        {
-            tasks.Add(WriteStream(
-                realm.All<Score>(),
-                output,
-                outputLock,
-                WriteScore
-            ));
-        }
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<Score>());
 
         if (_settings.Flags.HasFlag(ExportFlags.Skins))
+            all = all.Concat(_api.NewRealmInstance().Freeze().All<Skin>());
+
+        var chunks = all.Chunk(all.Count() / processingCount);
+
+        var options = new ParallelOptions
         {
-            tasks.Add(WriteStream(
-                realm.All<Skin>(),
-                output,
-                outputLock,
-                WriteSkin
-            ));
-        }
+            MaxDegreeOfParallelism = processingCount
+        };
 
-        Task.WhenAll(tasks).GetAwaiter().GetResult();
-        output.Flush();
-    }
+        var opts = new JsonWriterOptions { Indented = false, SkipValidation = true };
+        using var stdout = Console.OpenStandardOutput();
+        var outlock = new object();
 
-    internal static Task WriteStream<T>(
-        IQueryable<T> items,
-        Stream output,
-        object outputLock,
-        Action<Utf8JsonWriter, T> writeItem)
-    {
-        return Task.Run(() =>
+        Parallel.ForEach(chunks, options, chunk =>
         {
-            using var writer = new Utf8JsonWriter(
-                output,
-                CreateWriterOptions(indented: false, skipValidation: true)
-            );
+            using var writer = new Utf8JsonWriter(stdout, opts);
 
-            foreach (var item in items)
+            foreach (var obj in chunk)
             {
-                writeItem(writer, item);
+                switch (obj)
+                {
+                    case RealmUser user:
+                        WriteUser(writer, user);
+                        break;
+                    case Ruleset ruleset:
+                        WriteRuleset(writer, ruleset);
+                        break;
+                    case Beatmap map:
+                        WriteBeatmap(writer, map);
+                        break;
+                    case BeatmapSet set:
+                        WriteBeatmapSet(writer, set);
+                        break;
+                    case BeatmapCollection collection:
+                        WriteCollection(writer, collection);
+                        break;
+                    case Score score:
+                        WriteScore(writer, score);
+                        break;
+                    case Skin skin:
+                        WriteSkin(writer, skin);
+                        break;
+                }
 
-                lock (outputLock)
+                lock (outlock)
                 {
                     writer.Flush();
-                    output.WriteByte((byte)'\n');
-                    writer.Reset(output);
+                    stdout.WriteByte((byte)'\n');
+                    writer.Reset(stdout);
                 }
             }
-
-            writer.Flush();
         });
+
+        stdout.Flush();
+
+        // if (_settings.Flags == ExportFlags.None)
+        // {
+        //     return;
+        // }
+        //
+        // using var output = Console.OpenStandardOutput();
+        // using var realm = _api.NewRealmInstance().Freeze();
+        // var outputLock = new object();
+        // var tasks = new List<Task>(BitOperations.PopCount((uint)ExportFlags.All));
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.Users))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<RealmUser>(),
+        //         output,
+        //         outputLock,
+        //         WriteUser
+        //     ));
+        // }
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<Ruleset>(),
+        //         output,
+        //         outputLock,
+        //         WriteRuleset
+        //     ));
+        // }
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.Beatmaps))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<Beatmap>(),
+        //         output,
+        //         outputLock,
+        //         WriteBeatmap
+        //     ));
+        // }
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.BeatmapSets))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<BeatmapSet>(),
+        //         output,
+        //         outputLock,
+        //         WriteBeatmapSet
+        //     ));
+        // }
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.Collections))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<BeatmapCollection>(),
+        //         output,
+        //         outputLock,
+        //         WriteCollection
+        //     ));
+        // }
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.Scores))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<Score>(),
+        //         output,
+        //         outputLock,
+        //         WriteScore
+        //     ));
+        // }
+        //
+        // if (_settings.Flags.HasFlag(ExportFlags.Skins))
+        // {
+        //     tasks.Add(WriteStream(
+        //         realm.All<Skin>(),
+        //         output,
+        //         outputLock,
+        //         WriteSkin
+        //     ));
+        // }
+        //
+        // Task.WhenAll(tasks).GetAwaiter().GetResult();
+        // output.Flush();
     }
+
+    // internal static Task WriteStream<T>(
+    //     IQueryable<T> items,
+    //     Stream output,
+    //     object outputLock,
+    //     Action<Utf8JsonWriter, T> writeItem)
+    // {
+    //     return Task.Run(() =>
+    //     {
+    //         using var writer = new Utf8JsonWriter(
+    //             output,
+    //             CreateWriterOptions(indented: false, skipValidation: true)
+    //         );
+    //
+    //         foreach (var item in items)
+    //         {
+    //             writeItem(writer, item);
+    //
+    //             lock (outputLock)
+    //             {
+    //                 writer.Flush();
+    //                 output.WriteByte((byte)'\n');
+    //                 writer.Reset(output);
+    //             }
+    //         }
+    //
+    //         writer.Flush();
+    //     });
+    // }
 
     public string Export()
     {
