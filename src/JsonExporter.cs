@@ -59,7 +59,13 @@ internal sealed class JsonExporter
         var all = Enumerable.Empty<object>().AsQueryable();
 
         if (_settings.Flags.HasFlag(ExportFlags.Users))
-            all = all.Concat(_api.NewRealmInstance().Freeze().All<RealmUser>());
+            all = all.Concat(_api.NewRealmInstance()
+                .Freeze()
+                .All<RealmUser>()
+                .AsEnumerable()
+                // idky they're duplicate users
+                .DistinctBy(user => user.OnlineID)
+            );
 
         if (_settings.Flags.HasFlag(ExportFlags.Rulesets))
             all = all.Concat(_api.NewRealmInstance().Freeze().All<Ruleset>());
