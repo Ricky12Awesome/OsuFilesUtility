@@ -80,10 +80,6 @@ internal static class CommandLine
         {
             Description = "Format the JSON with indentation",
         };
-        var removeEmptyJson = new Option<bool>("--remove-empty")
-        {
-            Description = "Do not include empty data",
-        };
         var allowNullsJson = new Option<bool>("--allow-nulls")
         {
             Description = "Include null values in the JSON output",
@@ -122,7 +118,6 @@ internal static class CommandLine
         };
         var jsonOutput = CreateOutputArgument();
         exportJsonCommand.Options.Add(prettyJson);
-        exportJsonCommand.Options.Add(removeEmptyJson);
         exportJsonCommand.Options.Add(allowNullsJson);
         exportJsonCommand.Options.Add(allExceptJson);
         exportJsonCommand.Options.Add(usersJson);
