@@ -8,7 +8,7 @@ namespace OsuFilesUtility;
 
 public class Api
 {
-    public Realm Realm { get; private set; }
+    public Realm Realm { get; internal set; }
     private readonly RealmConfiguration _config;
     public string LazerPath { get; private set; }
     public bool Verbose { get; private set; }
@@ -34,6 +34,11 @@ public class Api
         Realm = Realm.GetInstance(_config);
         LazerPath = lazerPath;
         Verbose = verbose;
+    }
+
+    public void Freeze()
+    {
+        Realm = Realm.Freeze();
     }
 
     public Realm NewRealmInstance()

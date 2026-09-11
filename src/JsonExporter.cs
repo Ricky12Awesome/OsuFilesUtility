@@ -54,11 +54,6 @@ internal sealed class JsonExporter
         }
 
         using var output = Console.OpenStandardOutput();
-        using var writer = new Utf8JsonWriter(
-            output,
-            CreateWriterOptions(indented: false, skipValidation: true)
-        );
-
         using var realm = _api.NewRealmInstance().Freeze();
         var outputLock = new object();
         var tasks = new List<Task>(BitOperations.PopCount((uint)ExportFlags.All));
@@ -68,7 +63,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<RealmUser>(),
                 output,
-                writer,
                 outputLock,
                 WriteUser
             ));
@@ -79,7 +73,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<Ruleset>(),
                 output,
-                writer,
                 outputLock,
                 WriteRuleset
             ));
@@ -90,7 +83,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<Beatmap>(),
                 output,
-                writer,
                 outputLock,
                 WriteBeatmap
             ));
@@ -101,7 +93,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<BeatmapSet>(),
                 output,
-                writer,
                 outputLock,
                 WriteBeatmapSet
             ));
@@ -112,7 +103,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<BeatmapCollection>(),
                 output,
-                writer,
                 outputLock,
                 WriteCollection
             ));
@@ -123,7 +113,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<Score>(),
                 output,
-                writer,
                 outputLock,
                 WriteScore
             ));
@@ -134,7 +123,6 @@ internal sealed class JsonExporter
             tasks.Add(WriteStream(
                 realm.All<Skin>(),
                 output,
-                writer,
                 outputLock,
                 WriteSkin
             ));
@@ -144,17 +132,14 @@ internal sealed class JsonExporter
         output.Flush();
     }
 
-    private static Task WriteStream<T>(
-        IEnumerable<T> items,
+    internal static Task WriteStream<T>(
+        IQueryable<T> items,
         Stream output,
-        Utf8JsonWriter _, // Testing
         object outputLock,
         Action<Utf8JsonWriter, T> writeItem)
     {
         return Task.Run(() =>
         {
-            // var buffer = new ArrayBufferWriter<byte>(1024 * 1024);
-
             using var writer = new Utf8JsonWriter(
                 output,
                 CreateWriterOptions(indented: false, skipValidation: true)
@@ -167,17 +152,12 @@ internal sealed class JsonExporter
                 lock (outputLock)
                 {
                     writer.Flush();
-                    // var ln = (byte)'\n';
-                    // output.Write(new ReadOnlySpan<byte>(ref ln));
-                    output.WriteByte((byte) '\n');
+                    output.WriteByte((byte)'\n');
                     writer.Reset(output);
                 }
             }
-            
-            
 
             writer.Flush();
-            // output.Write(buffer.WrittenSpan);
         });
     }
 
@@ -251,7 +231,7 @@ internal sealed class JsonExporter
         return Encoding.UTF8.GetString(output.WrittenSpan);
     }
 
-    private static JsonWriterOptions CreateWriterOptions(bool indented, bool skipValidation = false)
+    internal static JsonWriterOptions CreateWriterOptions(bool indented, bool skipValidation = false)
     {
         return new JsonWriterOptions
         {
@@ -261,31 +241,31 @@ internal sealed class JsonExporter
         };
     }
 
-    private void WriteUserEntry(Utf8JsonWriter writer, RealmUser user)
+    internal void WriteUserEntry(Utf8JsonWriter writer, RealmUser user)
     {
         writer.WritePropertyName(user.OnlineID.ToString(CultureInfo.InvariantCulture));
         WriteUser(writer, user);
     }
 
-    private void WriteRulesetEntry(Utf8JsonWriter writer, Ruleset ruleset)
+    internal void WriteRulesetEntry(Utf8JsonWriter writer, Ruleset ruleset)
     {
         writer.WritePropertyName(ruleset.OnlineID.ToString(CultureInfo.InvariantCulture));
         WriteRuleset(writer, ruleset);
     }
 
-    private void WriteBeatmapEntry(Utf8JsonWriter writer, Beatmap beatmap)
+    internal void WriteBeatmapEntry(Utf8JsonWriter writer, Beatmap beatmap)
     {
         writer.WritePropertyName(beatmap.MD5Hash);
         WriteBeatmap(writer, beatmap);
     }
 
-    private void WriteBeatmapSetEntry(Utf8JsonWriter writer, BeatmapSet beatmapSet)
+    internal void WriteBeatmapSetEntry(Utf8JsonWriter writer, BeatmapSet beatmapSet)
     {
         writer.WritePropertyName(beatmapSet.OnlineID.ToString(CultureInfo.InvariantCulture));
         WriteBeatmapSet(writer, beatmapSet);
     }
 
-    private void WriteUser(Utf8JsonWriter writer, RealmUser user)
+    internal void WriteUser(Utf8JsonWriter writer, RealmUser user)
     {
         writer.WriteStartObject();
 
@@ -301,7 +281,7 @@ internal sealed class JsonExporter
         writer.WriteEndObject();
     }
 
-    private void WriteRuleset(Utf8JsonWriter writer, Ruleset ruleset)
+    internal void WriteRuleset(Utf8JsonWriter writer, Ruleset ruleset)
     {
         writer.WriteStartObject();
 
@@ -320,7 +300,7 @@ internal sealed class JsonExporter
         writer.WriteEndObject();
     }
 
-    private void WriteBeatmap(Utf8JsonWriter writer, Beatmap beatmap)
+    internal void WriteBeatmap(Utf8JsonWriter writer, Beatmap beatmap)
     {
         writer.WriteStartObject();
 
@@ -391,7 +371,7 @@ internal sealed class JsonExporter
         writer.WriteEndObject();
     }
 
-    private void WriteBeatmapSet(Utf8JsonWriter writer, BeatmapSet beatmapSet)
+    internal void WriteBeatmapSet(Utf8JsonWriter writer, BeatmapSet beatmapSet)
     {
         writer.WriteStartObject();
 
@@ -415,7 +395,7 @@ internal sealed class JsonExporter
         writer.WriteEndObject();
     }
 
-    private void WriteScore(Utf8JsonWriter writer, Score score)
+    internal void WriteScore(Utf8JsonWriter writer, Score score)
     {
         writer.WriteStartObject();
 
@@ -466,7 +446,7 @@ internal sealed class JsonExporter
         writer.WriteEndObject();
     }
 
-    private void WriteCollection(Utf8JsonWriter writer, BeatmapCollection collection)
+    internal void WriteCollection(Utf8JsonWriter writer, BeatmapCollection collection)
     {
         writer.WriteStartObject();
 
@@ -489,7 +469,7 @@ internal sealed class JsonExporter
         writer.WriteEndObject();
     }
 
-    private void WriteSkin(Utf8JsonWriter writer, Skin skin)
+    internal void WriteSkin(Utf8JsonWriter writer, Skin skin)
     {
         writer.WriteStartObject();
 
