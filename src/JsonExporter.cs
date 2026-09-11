@@ -16,7 +16,7 @@ internal sealed class JsonExporter
         bool IsPretty = false,
         bool IsStream = false,
         bool RemoveEmpty = false,
-        bool WriteNulls = false,
+        bool AllowNulls = false,
         ExportFlags Flags = ExportFlags.All
     );
 
@@ -416,15 +416,15 @@ internal sealed class JsonExporter
         writer.WritePropertyName("Metadata");
         writer.WriteStartObject();
         writer.WriteString("Title", beatmap.Metadata.Title);
-        writer.WriteIfNotNull("TitleUnicode", beatmap.Metadata.TitleUnicode, _settings.WriteNulls);
+        writer.WriteIfNotNull("TitleUnicode", beatmap.Metadata.TitleUnicode, _settings.AllowNulls);
         writer.WriteString("Artist", beatmap.Metadata.Artist);
-        writer.WriteIfNotNull("ArtistUnicode", beatmap.Metadata.ArtistUnicode, _settings.WriteNulls);
+        writer.WriteIfNotNull("ArtistUnicode", beatmap.Metadata.ArtistUnicode, _settings.AllowNulls);
         writer.WriteNumber("Author", beatmap.Metadata.Author.OnlineID);
         writer.WriteIfNotNull("Source", beatmap.Metadata.Source);
-        writer.WriteIfNotNull("Tags", beatmap.Metadata.Tags, _settings.WriteNulls);
+        writer.WriteIfNotNull("Tags", beatmap.Metadata.Tags, _settings.AllowNulls);
         writer.WriteNumber("PreviewTime", beatmap.Metadata.PreviewTime);
         writer.WriteString("AudioFile", beatmap.Metadata.AudioFile);
-        writer.WriteIfNotNull("BackgroundFile", beatmap.Metadata.BackgroundFile, _settings.WriteNulls);
+        writer.WriteIfNotNull("BackgroundFile", beatmap.Metadata.BackgroundFile, _settings.AllowNulls);
 
         writer.WritePropertyName("UserTags");
         writer.WriteStartArray();
@@ -449,15 +449,15 @@ internal sealed class JsonExporter
         writer.WriteString("Hash", beatmap.Hash);
         writer.WriteNumber("StarRating", beatmap.StarRating);
         writer.WriteString("MD5Hash", beatmap.MD5Hash);
-        writer.WriteIfNotNull("OnlineMD5Hash", beatmap.OnlineMD5Hash, _settings.WriteNulls);
-        writer.WriteIfNotNull("LastLocalUpdate", beatmap.LastLocalUpdate, _settings.WriteNulls);
-        writer.WriteIfNotNull("LastOnlineUpdate", beatmap.LastOnlineUpdate, _settings.WriteNulls);
+        writer.WriteIfNotNull("OnlineMD5Hash", beatmap.OnlineMD5Hash, _settings.AllowNulls);
+        writer.WriteIfNotNull("LastLocalUpdate", beatmap.LastLocalUpdate, _settings.AllowNulls);
+        writer.WriteIfNotNull("LastOnlineUpdate", beatmap.LastOnlineUpdate, _settings.AllowNulls);
         writer.WriteBoolean("Hidden", beatmap.Hidden);
         writer.WriteNumber("EndTimeObjectCount", beatmap.EndTimeObjectCount);
         writer.WriteNumber("TotalObjectCount", beatmap.TotalObjectCount);
-        writer.WriteIfNotNull("LastPlayed", beatmap.LastPlayed, _settings.WriteNulls);
+        writer.WriteIfNotNull("LastPlayed", beatmap.LastPlayed, _settings.AllowNulls);
         writer.WriteNumber("BeatDivisor", beatmap.BeatDivisor);
-        writer.WriteIfNotNull("EditorTimestamp", beatmap.EditorTimestamp, _settings.WriteNulls);
+        writer.WriteIfNotNull("EditorTimestamp", beatmap.EditorTimestamp, _settings.AllowNulls);
 
         writer.WriteEndObject();
     }
@@ -497,10 +497,10 @@ internal sealed class JsonExporter
 
         if (score.BeatmapInfo is not null)
         {
-            writer.WriteIfNotNull("BeatmapInfo", score.BeatmapInfo.MD5Hash, _settings.WriteNulls);
+            writer.WriteIfNotNull("BeatmapInfo", score.BeatmapInfo.MD5Hash, _settings.AllowNulls);
         }
 
-        writer.WriteIfNotNull("ClientVersion", score.ClientVersion, _settings.WriteNulls);
+        writer.WriteIfNotNull("ClientVersion", score.ClientVersion, _settings.AllowNulls);
         writer.WriteString("BeatmapHash", score.BeatmapHash);
         writer.WriteNumber("Ruleset", score.Ruleset.OnlineID);
         writer.WritePropertyName("Files");
@@ -510,16 +510,16 @@ internal sealed class JsonExporter
         writer.WriteNumber("TotalScore", score.TotalScore);
         writer.WriteNumber("TotalScoreWithoutMods", score.TotalScoreWithoutMods);
         writer.WriteNumber("TotalScoreVersion", score.TotalScoreVersion);
-        writer.WriteIfNotNull("LegacyTotalScore", score.LegacyTotalScore, _settings.WriteNulls);
+        writer.WriteIfNotNull("LegacyTotalScore", score.LegacyTotalScore, _settings.AllowNulls);
         writer.WriteBoolean("BackgroundReprocessingFailed", score.BackgroundReprocessingFailed);
         writer.WriteNumber("MaxCombo", score.MaxCombo);
         writer.WriteNumber("Accuracy", score.Accuracy);
         writer.WriteDateTime("Date", score.Date);
-        writer.WriteIfNotNull("PP", score.PP, _settings.WriteNulls);
+        writer.WriteIfNotNull("PP", score.PP, _settings.AllowNulls);
         writer.WriteNumber("OnlineID", score.OnlineID);
         writer.WriteNumber("LegacyOnlineID", score.LegacyOnlineID);
         writer.WriteNumber("User", score.User.OnlineID);
-        writer.WriteIfNotNull("Mods", score.Mods, _settings.WriteNulls);
+        writer.WriteIfNotNull("Mods", score.Mods, _settings.AllowNulls);
         writer.WriteString("Statistics", score.Statistics);
         writer.WriteString("MaximumStatistics", score.MaximumStatistics);
         writer.WriteNumber("Rank", score.Rank);
@@ -572,7 +572,7 @@ internal sealed class JsonExporter
         writer.WriteString("Name", skin.Name);
         writer.WriteString("Creator", skin.Creator);
         writer.WriteString("InstantiationInfo", skin.InstantiationInfo);
-        writer.WriteIfNotNull("Hash", skin.Hash, _settings.WriteNulls);
+        writer.WriteIfNotNull("Hash", skin.Hash, _settings.AllowNulls);
         writer.WriteBoolean("Protected", skin.Protected);
         writer.WritePropertyName("Files");
         writer.WriteFiles(skin.Files);

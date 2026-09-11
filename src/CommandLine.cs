@@ -84,6 +84,10 @@ internal static class CommandLine
         {
             Description = "Do not include empty data",
         };
+        var allowNullsJson = new Option<bool>("--allow-nulls")
+        {
+            Description = "Include null values in the JSON output",
+        };
         var allExceptJson = new Option<bool>("--all-except")
         {
             Description = "Export all except selected flags",
@@ -119,6 +123,7 @@ internal static class CommandLine
         var jsonOutput = CreateOutputArgument();
         exportJsonCommand.Options.Add(prettyJson);
         exportJsonCommand.Options.Add(removeEmptyJson);
+        exportJsonCommand.Options.Add(allowNullsJson);
         exportJsonCommand.Options.Add(allExceptJson);
         exportJsonCommand.Options.Add(usersJson);
         exportJsonCommand.Options.Add(rulesetsJson);
@@ -159,10 +164,15 @@ internal static class CommandLine
                 jsonFlagOptions,
                 isStream: false,
                 pretty: prettyJson,
-                removeEmpty: removeEmptyJson))));
+                removeEmpty: removeEmptyJson,
+                allowNulls: allowNullsJson))));
 
         var exportStreamCommand = new Command("stream", "Stream beatmap data for use by another application");
         var exportStreamJsonCommand = new Command("json", "Stream beatmap data as newline-delimited JSON");
+        var allowNullsStreamJson = new Option<bool>("--allow-nulls")
+        {
+            Description = "Include null values in the JSON output",
+        };
         var allExceptStreamJson = new Option<bool>("--all-except")
         {
             Description = "Export all except selected flags",
@@ -196,6 +206,7 @@ internal static class CommandLine
             Description = "Export skins",
         };
         exportStreamJsonCommand.Options.Add(allExceptStreamJson);
+        exportStreamJsonCommand.Options.Add(allowNullsStreamJson);
         exportStreamJsonCommand.Options.Add(usersStreamJson);
         exportStreamJsonCommand.Options.Add(rulesetsStreamJson);
         exportStreamJsonCommand.Options.Add(beatmapsStreamJson);
@@ -231,7 +242,8 @@ internal static class CommandLine
                 parsed,
                 allExceptStreamJson,
                 streamJsonFlagOptions,
-                isStream: true))));
+                isStream: true,
+                allowNulls: allowNullsStreamJson))));
 
         exportStreamCommand.Subcommands.Add(exportStreamJsonCommand);
         exportStreamCommand.Description += exportStreamCommand.SubcommandHelpValues();
@@ -458,7 +470,8 @@ internal static class CommandLine
         IReadOnlyList<(Option<bool> Option, JsonExporter.ExportFlags Flag)> flagOptions,
         bool isStream,
         Option<bool>? pretty = null,
-        Option<bool>? removeEmpty = null)
+        Option<bool>? removeEmpty = null,
+        Option<bool>? allowNulls = null)
     {
         var selectedFlags = flagOptions
             .Where(option => parsed.GetValue(option.Option))
@@ -476,6 +489,7 @@ internal static class CommandLine
             IsPretty: pretty is not null && parsed.GetValue(pretty),
             IsStream: isStream,
             RemoveEmpty: removeEmpty is not null && parsed.GetValue(removeEmpty),
+            AllowNulls: allowNulls is not null && parsed.GetValue(allowNulls),
             Flags: flags);
     }
 
