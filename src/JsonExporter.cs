@@ -16,19 +16,23 @@ internal sealed class JsonExporter
         ExportFlags Flags = ExportFlags.All
     );
 
+    internal sealed record DataInfo(string LazerInstallPath);
+
     [Flags]
     internal enum ExportFlags
     {
         None = 0,
-        Users = 1 << 0,
-        Rulesets = 1 << 1,
-        Beatmaps = 1 << 2,
-        BeatmapSets = 1 << 3,
-        Collections = 1 << 4,
-        Scores = 1 << 5,
-        Skins = 1 << 6,
+        DataInfo = 1 << 0,
+        Users = 1 << 1,
+        Rulesets = 1 << 2,
+        Beatmaps = 1 << 3,
+        BeatmapSets = 1 << 4,
+        Collections = 1 << 5,
+        Scores = 1 << 6,
+        Skins = 1 << 7,
 
-        All = Users
+        All = DataInfo
+              | Users
               | Rulesets
               | Beatmaps
               | BeatmapSets
@@ -57,6 +61,12 @@ internal sealed class JsonExporter
         var processingCount = BitOperations.PopCount((uint)ExportFlags.All);
 
         var all = Enumerable.Empty<object>().AsQueryable();
+
+        if (_settings.Flags.HasFlag(ExportFlags.DataInfo))
+        {
+            var obj = new DataInfo(LazerInstallPath: _api.LazerPath);
+            all = all.Concat([obj]);
+        }
 
         if (_settings.Flags.HasFlag(ExportFlags.Users))
             all = all.Concat(_api.NewRealmInstance()
@@ -119,6 +129,13 @@ internal sealed class JsonExporter
             {
                 switch (obj)
                 {
+                    case DataInfo data:
+                        chunkWriter.WriteStartObject();
+                        chunkWriter.WriteString("Type", "DataInfo");
+                        chunkWriter.WriteString(nameof(data.LazerInstallPath), data.LazerInstallPath);
+                        chunkWriter.WriteEndObject();
+                        break;
+
                     case RealmUser user:
                         WriteUser(chunkWriter, user);
                         break;

@@ -84,6 +84,10 @@ internal static class CommandLine
         {
             Description = "Include null values in the JSON output",
         };
+        var dataInfoJson = new Option<bool>("--datainfo", "--info")
+        {
+            Description = "Export information about the data source",
+        };
         var allExceptJson = new Option<bool>("--all-except")
         {
             Description = "Export all except selected flags",
@@ -119,6 +123,7 @@ internal static class CommandLine
         var jsonOutput = CreateOutputArgument();
         exportJsonCommand.Options.Add(prettyJson);
         exportJsonCommand.Options.Add(allowNullsJson);
+        exportJsonCommand.Options.Add(dataInfoJson);
         exportJsonCommand.Options.Add(allExceptJson);
         exportJsonCommand.Options.Add(usersJson);
         exportJsonCommand.Options.Add(rulesetsJson);
@@ -130,6 +135,7 @@ internal static class CommandLine
         exportJsonCommand.Arguments.Add(jsonOutput);
         var jsonFlagOptions = new[]
         {
+            (Option: dataInfoJson, Flag: JsonExporter.ExportFlags.DataInfo),
             (Option: usersJson, Flag: JsonExporter.ExportFlags.Users),
             (Option: rulesetsJson, Flag: JsonExporter.ExportFlags.Rulesets),
             (Option: beatmapsJson, Flag: JsonExporter.ExportFlags.Beatmaps),
@@ -165,6 +171,10 @@ internal static class CommandLine
         {
             Description = "Include null values in the JSON output",
         };
+        var dataInfoNdjson = new Option<bool>("--datainfo", "--info")
+        {
+            Description = "Export information about the data source",
+        };
         var allExceptNdjson = new Option<bool>("--all-except")
         {
             Description = "Export all except selected flags",
@@ -199,6 +209,7 @@ internal static class CommandLine
         };
         exportNdjsonCommand.Options.Add(allExceptNdjson);
         exportNdjsonCommand.Options.Add(allowNullsNdjson);
+        exportNdjsonCommand.Options.Add(dataInfoNdjson);
         exportNdjsonCommand.Options.Add(usersNdjson);
         exportNdjsonCommand.Options.Add(rulesetsNdjson);
         exportNdjsonCommand.Options.Add(beatmapsNdjson);
@@ -208,6 +219,7 @@ internal static class CommandLine
         exportNdjsonCommand.Options.Add(skinsNdjson);
         var ndjsonFlagOptions = new[]
         {
+            (Option: dataInfoNdjson, Flag: JsonExporter.ExportFlags.DataInfo),
             (Option: usersNdjson, Flag: JsonExporter.ExportFlags.Users),
             (Option: rulesetsNdjson, Flag: JsonExporter.ExportFlags.Rulesets),
             (Option: beatmapsNdjson, Flag: JsonExporter.ExportFlags.Beatmaps),
