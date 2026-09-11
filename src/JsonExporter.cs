@@ -1,7 +1,5 @@
-using System.Buffers;
 using System.Globalization;
 using System.Numerics;
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -14,7 +12,6 @@ internal sealed class JsonExporter
 
     internal sealed record ExportSettings(
         bool IsPretty = false,
-        bool IsStream = false,
         bool AllowNulls = false,
         ExportFlags Flags = ExportFlags.All
     );

@@ -162,7 +162,6 @@ internal static class CommandLine
                 parsed,
                 allExceptJson,
                 jsonFlagOptions,
-                isStream: false,
                 pretty: prettyJson,
                 allowNulls: allowNullsJson))));
 
@@ -240,7 +239,6 @@ internal static class CommandLine
                 parsed,
                 allExceptNdjson,
                 ndjsonFlagOptions,
-                isStream: true,
                 allowNulls: allowNullsNdjson))));
 
         var exportBinaryCommand = new Command("binary", "Export beatmap data in binary format");
@@ -461,7 +459,6 @@ internal static class CommandLine
         ParseResult parsed,
         Option<bool> allExcept,
         IReadOnlyList<(Option<bool> Option, JsonExporter.ExportFlags Flag)> flagOptions,
-        bool isStream,
         Option<bool>? pretty = null,
         Option<bool>? allowNulls = null)
     {
@@ -479,7 +476,6 @@ internal static class CommandLine
 
         return new JsonExporter.ExportSettings(
             IsPretty: pretty is not null && parsed.GetValue(pretty),
-            IsStream: isStream,
             AllowNulls: allowNulls is not null && parsed.GetValue(allowNulls),
             Flags: flags);
     }
