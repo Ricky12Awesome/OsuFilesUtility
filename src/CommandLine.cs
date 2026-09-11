@@ -164,7 +164,6 @@ internal static class CommandLine
                 jsonFlagOptions,
                 isStream: false,
                 pretty: prettyJson,
-                removeEmpty: removeEmptyJson,
                 allowNulls: allowNullsJson))));
 
         var exportNdjsonCommand = new Command("ndjson", "Export beatmap data as newline-delimited JSON");
@@ -388,10 +387,7 @@ internal static class CommandLine
         root.Subcommands.Add(validateCommand);
 
         var helpCommand = new Command("help", "Show help for the command-line interface");
-        helpCommand.SetAction(_ =>
-        {
-            root.Parse(["--help"]).Invoke();
-        });
+        helpCommand.SetAction(_ => { root.Parse(["--help"]).Invoke(); });
         root.Subcommands.Add(helpCommand);
 
         var versionCommand = new Command("version", "Show version information");
@@ -467,7 +463,6 @@ internal static class CommandLine
         IReadOnlyList<(Option<bool> Option, JsonExporter.ExportFlags Flag)> flagOptions,
         bool isStream,
         Option<bool>? pretty = null,
-        Option<bool>? removeEmpty = null,
         Option<bool>? allowNulls = null)
     {
         var selectedFlags = flagOptions
@@ -485,7 +480,6 @@ internal static class CommandLine
         return new JsonExporter.ExportSettings(
             IsPretty: pretty is not null && parsed.GetValue(pretty),
             IsStream: isStream,
-            RemoveEmpty: removeEmpty is not null && parsed.GetValue(removeEmpty),
             AllowNulls: allowNulls is not null && parsed.GetValue(allowNulls),
             Flags: flags);
     }
@@ -681,8 +675,8 @@ internal static class CommandLine
     {
         var assembly = typeof(CommandLine).Assembly;
         return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? assembly.GetName().Version?.ToString()
-            ?? "unknown";
+               ?? assembly.GetName().Version?.ToString()
+               ?? "unknown";
     }
 
     public static bool CheckDrives(string lazerPath, string outPath)
@@ -737,19 +731,15 @@ internal static class CommandLine
 
     private static void ExportJson(Api api, string? outPath, JsonExporter.ExportSettings settings)
     {
-        var json = api.ExportToJson(settings);
-
         if (outPath is not null)
         {
-            Console.WriteLine($"Saving to {outPath}...");
-
             using var file = System.IO.File.CreateText(outPath);
-            file.Write(json);
-            Console.WriteLine("Done.");
+            api.ExportToJson(settings, file);
         }
         else
         {
-            Console.WriteLine(json);
+            using var writer = new StreamWriter(Console.OpenStandardOutput());
+            api.ExportToJson(settings, writer);
         }
     }
 

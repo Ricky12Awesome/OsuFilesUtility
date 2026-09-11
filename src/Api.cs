@@ -221,12 +221,12 @@ public class Api
 
     internal void ExportToJsonStream(JsonExporter.ExportSettings settings)
     {
-        new JsonExporter(settings, this).ExportStream();
+        new JsonExporter(settings, this).ExportStream(Console.OpenStandardOutput());
     }
 
-    internal string ExportToJson(JsonExporter.ExportSettings settings)
+    internal void ExportToJson(JsonExporter.ExportSettings settings, StreamWriter stream)
     {
-        return new JsonExporter(settings, this).Export();
+        new JsonExporter(settings, this).Export(stream.BaseStream);
     }
 
     public void ExportToBinary(BinaryWriter writer)
