@@ -167,72 +167,71 @@ internal static class CommandLine
                 removeEmpty: removeEmptyJson,
                 allowNulls: allowNullsJson))));
 
-        var exportStreamCommand = new Command("stream", "Stream beatmap data for use by another application");
-        var exportStreamJsonCommand = new Command("json", "Stream beatmap data as newline-delimited JSON");
-        var allowNullsStreamJson = new Option<bool>("--allow-nulls")
+        var exportNdjsonCommand = new Command("ndjson", "Export beatmap data as newline-delimited JSON");
+        var allowNullsNdjson = new Option<bool>("--allow-nulls")
         {
             Description = "Include null values in the JSON output",
         };
-        var allExceptStreamJson = new Option<bool>("--all-except")
+        var allExceptNdjson = new Option<bool>("--all-except")
         {
             Description = "Export all except selected flags",
         };
-        var usersStreamJson = new Option<bool>("--users")
+        var usersNdjson = new Option<bool>("--users")
         {
             Description = "Export users",
         };
-        var rulesetsStreamJson = new Option<bool>("--rulesets")
+        var rulesetsNdjson = new Option<bool>("--rulesets")
         {
             Description = "Export rulesets",
         };
-        var beatmapsStreamJson = new Option<bool>("--beatmaps", "--maps")
+        var beatmapsNdjson = new Option<bool>("--beatmaps", "--maps")
         {
             Description = "Export beatmaps",
         };
-        var beatmapSetsStreamJson = new Option<bool>("--beatmapsets", "--sets")
+        var beatmapSetsNdjson = new Option<bool>("--beatmapsets", "--sets")
         {
             Description = "Export beatmap sets",
         };
-        var collectionsStreamJson = new Option<bool>("--collections")
+        var collectionsNdjson = new Option<bool>("--collections")
         {
             Description = "Export collections",
         };
-        var scoresStreamJson = new Option<bool>("--scores")
+        var scoresNdjson = new Option<bool>("--scores")
         {
             Description = "Export scores",
         };
-        var skinsStreamJson = new Option<bool>("--skins")
+        var skinsNdjson = new Option<bool>("--skins")
         {
             Description = "Export skins",
         };
-        exportStreamJsonCommand.Options.Add(allExceptStreamJson);
-        exportStreamJsonCommand.Options.Add(allowNullsStreamJson);
-        exportStreamJsonCommand.Options.Add(usersStreamJson);
-        exportStreamJsonCommand.Options.Add(rulesetsStreamJson);
-        exportStreamJsonCommand.Options.Add(beatmapsStreamJson);
-        exportStreamJsonCommand.Options.Add(beatmapSetsStreamJson);
-        exportStreamJsonCommand.Options.Add(collectionsStreamJson);
-        exportStreamJsonCommand.Options.Add(scoresStreamJson);
-        exportStreamJsonCommand.Options.Add(skinsStreamJson);
-        var streamJsonFlagOptions = new[]
+        exportNdjsonCommand.Options.Add(allExceptNdjson);
+        exportNdjsonCommand.Options.Add(allowNullsNdjson);
+        exportNdjsonCommand.Options.Add(usersNdjson);
+        exportNdjsonCommand.Options.Add(rulesetsNdjson);
+        exportNdjsonCommand.Options.Add(beatmapsNdjson);
+        exportNdjsonCommand.Options.Add(beatmapSetsNdjson);
+        exportNdjsonCommand.Options.Add(collectionsNdjson);
+        exportNdjsonCommand.Options.Add(scoresNdjson);
+        exportNdjsonCommand.Options.Add(skinsNdjson);
+        var ndjsonFlagOptions = new[]
         {
-            (Option: usersStreamJson, Flag: JsonExporter.ExportFlags.Users),
-            (Option: rulesetsStreamJson, Flag: JsonExporter.ExportFlags.Rulesets),
-            (Option: beatmapsStreamJson, Flag: JsonExporter.ExportFlags.Beatmaps),
-            (Option: beatmapSetsStreamJson, Flag: JsonExporter.ExportFlags.BeatmapSets),
-            (Option: collectionsStreamJson, Flag: JsonExporter.ExportFlags.Collections),
-            (Option: scoresStreamJson, Flag: JsonExporter.ExportFlags.Scores),
-            (Option: skinsStreamJson, Flag: JsonExporter.ExportFlags.Skins),
+            (Option: usersNdjson, Flag: JsonExporter.ExportFlags.Users),
+            (Option: rulesetsNdjson, Flag: JsonExporter.ExportFlags.Rulesets),
+            (Option: beatmapsNdjson, Flag: JsonExporter.ExportFlags.Beatmaps),
+            (Option: beatmapSetsNdjson, Flag: JsonExporter.ExportFlags.BeatmapSets),
+            (Option: collectionsNdjson, Flag: JsonExporter.ExportFlags.Collections),
+            (Option: scoresNdjson, Flag: JsonExporter.ExportFlags.Scores),
+            (Option: skinsNdjson, Flag: JsonExporter.ExportFlags.Skins),
         };
-        exportStreamJsonCommand.Validators.Add(commandResult =>
+        exportNdjsonCommand.Validators.Add(commandResult =>
         {
-            if (commandResult.GetResult(allExceptStreamJson) is not null &&
-                streamJsonFlagOptions.All(option => commandResult.GetResult(option.Option) is null))
+            if (commandResult.GetResult(allExceptNdjson) is not null &&
+                ndjsonFlagOptions.All(option => commandResult.GetResult(option.Option) is null))
             {
                 commandResult.AddError("--all-except requires at least one export flag to specify the exceptions");
             }
         });
-        exportStreamJsonCommand.SetAction(parsed => Run(CreateArgs(
+        exportNdjsonCommand.SetAction(parsed => Run(CreateArgs(
             parsed,
             lazerPath,
             isVerbose,
@@ -240,13 +239,11 @@ internal static class CommandLine
             Args.Operation.ExportJsonStream,
             jsonSettings: CreateJsonExportSettings(
                 parsed,
-                allExceptStreamJson,
-                streamJsonFlagOptions,
+                allExceptNdjson,
+                ndjsonFlagOptions,
                 isStream: true,
-                allowNulls: allowNullsStreamJson))));
+                allowNulls: allowNullsNdjson))));
 
-        exportStreamCommand.Subcommands.Add(exportStreamJsonCommand);
-        exportStreamCommand.Description += exportStreamCommand.SubcommandHelpValues();
         var exportBinaryCommand = new Command("binary", "Export beatmap data in binary format");
         var binaryOutput = CreateOutputArgument();
         exportBinaryCommand.Arguments.Add(binaryOutput);
@@ -259,7 +256,7 @@ internal static class CommandLine
             parsed.GetValue(binaryOutput))));
 
         exportCommand.Subcommands.Add(exportJsonCommand);
-        exportCommand.Subcommands.Add(exportStreamCommand);
+        exportCommand.Subcommands.Add(exportNdjsonCommand);
         exportCommand.Subcommands.Add(exportBinaryCommand);
         exportCommand.Description += exportCommand.SubcommandHelpValues();
         root.Subcommands.Add(exportCommand);

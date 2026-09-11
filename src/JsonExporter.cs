@@ -47,7 +47,6 @@ internal sealed class JsonExporter
         _api = api;
     }
 
-
     public void ExportStream()
     {
         if (_settings.Flags == ExportFlags.None)

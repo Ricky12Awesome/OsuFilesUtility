@@ -67,10 +67,10 @@ ofu export json --pretty
 ofu export json --maps --sets
 
 # Export all data into ndjson (json but each item is on a newline)
-ofu export stream json
+ofu export ndjson
 
 # Exports only beatmaps and beatmap sets
-ofu export stream json --maps --sets
+ofu export ndjson --maps --sets
 ```
 
 [//]: # (### Format)
