@@ -34,180 +34,203 @@ This will mess up the order of stuff like `Date Added`
 
 ## Basic Usage
 
-Simply run the exe and it will create a folder
-`YOU-CAN-RENAME-THIS-AND-MOVE-THIS-ON-SAME-DRIVE`
-you can rename the folder to anything and be move anywhere on same drive
-if you move this folder to a different drive it will copy files and not be symlinks anymore (at least on windows)
+Simply run the exe, and it will create a folder `songs`.
+you can rename the folder to anything and be move anywhere on same drive.
+if you move this folder to a different drive it will copy files and not be symlinks anymore (at least on Windows).
 
-You can also drag and drop a folder on the program, and it will use that for output directory
+You can also drag and drop a folder on the program, and it will use that for output path
 
 ## CLI Usage
 
-`<executable>` is the path to the executable file like `./path/to/OsuFilesUtility-win-x64.exe`
-
-on windows, you can drag and drop the exe into terminal to paste path directly
-
----
-Probably the most common use case, this will map ALL beatmaps from lazer to `./songs` directory
-these files take no space since they're symlinks pointing to the original file
 
 ```sh
-<executable> link all ./songs
+# Probably the most common use case, this will map ALL beatmaps from lazer to `./songs` directory
+# these files take no space since these are symlinks pointing to the original file
+ofu link all
+
+# Run this if any maps gets deleted, this will validate all files in `./songs` and remove invalid symlinks
+ofu validate
+
+# This will link only the beatmap used in this replay
+ofu link replay <path/to/replay.osr>
+
+# This will link the difference between two lazer installs
+ofu diff <path/to/other/lazer/install>
+
+# Exports all data into json
+ofu export json
+
+# Exports all data into json but with indentation (better readable) 
+ofu export json --pretty
+
+# Exports only beatmaps and beatmap sets
+ofu export json --maps --sets
+
+# Export all data into ndjson (json but each item is on a newline)
+ofu export stream json
+
+# Exports only beatmaps and beatmap sets
+ofu export stream json --maps --sets
 ```
 
----
-Should run this if any maps gets deleted, this will validate all files in `./songs` and remove invalid symlinks
+[//]: # (### Format)
 
-```sh
-<executable> validate ./songs
-```
+[//]: # ()
+[//]: # (#### Json)
 
----
-This will link only the beatmap used in this replay
+[//]: # ()
+[//]: # (```json5)
 
-```sh
-<executable> link replay path/to/replay.osr ./songs
-```
+[//]: # ({)
 
----
-This will link the difference between two lazer installs
+[//]: # (  "BeatmapSets": [)
 
-```sh
-<executable> diff path/to/other/lazer/install ./songs
-``` 
+[//]: # (    {)
 
----
+[//]: # (      "OnlineID": -1,)
 
-## Export
+[//]: # (      "Files": {)
 
-This will export all data into JSON. Omit the output path to write to stdout; use `--pretty` for formatted JSON.
+[//]: # (        "audio.mp3": "47b895484e7751f3ab429694ff6dbf21e774ab023e4f6c5b481476f04ff22f0f",)
 
-```sh
-<executable> export json --pretty out.json
-```
+[//]: # (        "cYsmix - triangles &#40;peppy&#41; [peppy].osu": "a1556d0801b3a6b175dda32ef546f0ec812b400499f575c44fccbe9c67f9b1e5")
 
-Pass one or more section flags to export only those sections. If no section flags are
-passed, all sections are exported. `--all-except` reverses this behavior and excludes
-the specified sections. `--remove-empty` omits selected sections with no data.
-`--all-except` must be followed by at least one section flag.
+[//]: # (      },)
 
-```sh
-<executable> export json --users
-<executable> export json --beatmaps
-<executable> export json --scores --skins
-<executable> export json --all-except --users
-```
+[//]: # (      "Beatmaps": [)
 
-`--maps` is an alias for `--beatmaps`, and `--sets` is an alias for `--beatmapsets`.
+[//]: # (        {)
 
-For newline-delimited JSON streamed to stdout, use the stream command. It supports
-the same section flags, but does not accept an output path, `--pretty`, or
-`--remove-empty`.
+[//]: # (          "MD5Hash": "27d9765612170a9517f0a5e8b4613f06",)
 
-```sh
-<executable> export stream json --maps --sets
-```
+[//]: # (          "OnlineID": 0,)
 
----
-This will export into binary format (this is experimental)
+[//]: # (          "Title": "triangles",)
 
-```sh
-<executable> export binary out.bin
-```
+[//]: # (          "TitleUnicode": "triangles",)
 
-Global options can be used with every command:
+[//]: # (          "Artist": "cYsmix",)
 
-```sh
-<executable> --dir path/to/osu --verbose link all ./songs
-<executable> -q validate ./songs
-```
+[//]: # (          "ArtistUnicode": "cYsmix",)
 
----
+[//]: # (          "Source": null,)
 
-### Format
+[//]: # (          "AudioFile": "audio.mp3",)
 
-#### Json
+[//]: # (          "BackgroundFile": null)
 
-```json5
-{
-  "BeatmapSets": [
-    {
-      "OnlineID": -1,
-      "Files": {
-        "audio.mp3": "47b895484e7751f3ab429694ff6dbf21e774ab023e4f6c5b481476f04ff22f0f",
-        "cYsmix - triangles (peppy) [peppy].osu": "a1556d0801b3a6b175dda32ef546f0ec812b400499f575c44fccbe9c67f9b1e5"
-      },
-      "Beatmaps": [
-        {
-          "MD5Hash": "27d9765612170a9517f0a5e8b4613f06",
-          "OnlineID": 0,
-          "Title": "triangles",
-          "TitleUnicode": "triangles",
-          "Artist": "cYsmix",
-          "ArtistUnicode": "cYsmix",
-          "Source": null,
-          "AudioFile": "audio.mp3",
-          "BackgroundFile": null
-        }
-      ]
-    },
-    // ..
-  ]
-}
-```
+[//]: # (        })
 
-#### Binary (Experimental)
-- `bool` BinaryFormat Mode (this might be int later if I add more modes)
-    - `Binary1` `true` String are encoded using 1 byte as length
-    - `Binary2` `false` Strings are encoded using 4 bytes as length
-- `unsigned int` BeatmapSet Count
-    - `signed long` OnlineID
-    - `unsigned int` Files Count
-        - `string` Filename
-        - `32 bytes` Hash
-    - `unsigned int` Beatmap Count
-        - `16 bytes` MD5Hash
-        - `signed long` OnlineID
-        - `string` Title
-        - `string` TitleUnicode
-        - `string` Artist
-        - `string` ArtistUnicode
-        - `string` Source
-        - `string` AudioFile
-        - `string` BackgroundFile
+[//]: # (      ])
 
+[//]: # (    })
 
-- `string` type is formatted like
-    - `unsigned byte` Length on `Binary1` (Fine in 99% of cases)
-    - `unsigned int` Length on `Binary2`
-    - `bytes` UTF-8 Data
-    - if Length is zero it will just be `signed int 0`
+[//]: # (  ])
 
-Example (simplified)
+[//]: # (})
 
-```csharp
-true                                                                // Mode
-1                                                                   // BeatmapSet Count
--1                                                                  // OnlineID
-2                                                                   // Files Count
-// Index 0
-"audio.mp3"                                                         // Filename
-"47b895484e7751f3ab429694ff6dbf21e774ab023e4f6c5b481476f04ff22f0f"  // SHA256 Hash (encoded as 32 bytes not string)
-// Index 1
-"cYsmix - triangles (peppy) [peppy].osu"
-"a1556d0801b3a6b175dda32ef546f0ec812b400499f575c44fccbe9c67f9b1e5"
-1                                                                   // Beatmap Count
-// Index 0
-"27d9765612170a9517f0a5e8b4613f06"                                  // MD5Hash (encoded as 16 bytes not string)
-0                                                                   // OnlineID
-"triangles"                                                         // Title
-"triangles"                                                         // TitleUnicode
-"cYsmix"                                                            // Artist
-"cYsmix"                                                            // ArtistUnicode
-0                                                                   // Source
-"audio.mp3"                                                         // AudioFile
-0                                                                   // BackgroundFile
-```
+[//]: # (```)
+
+[//]: # ()
+[//]: # (#### Binary &#40;Experimental&#41;)
+
+[//]: # (- `bool` BinaryFormat Mode &#40;this might be int later if I add more modes&#41;)
+
+[//]: # (    - `Binary1` `true` String are encoded using 1 byte as length)
+
+[//]: # (    - `Binary2` `false` Strings are encoded using 4 bytes as length)
+
+[//]: # (- `unsigned int` BeatmapSet Count)
+
+[//]: # (    - `signed long` OnlineID)
+
+[//]: # (    - `unsigned int` Files Count)
+
+[//]: # (        - `string` Filename)
+
+[//]: # (        - `32 bytes` Hash)
+
+[//]: # (    - `unsigned int` Beatmap Count)
+
+[//]: # (        - `16 bytes` MD5Hash)
+
+[//]: # (        - `signed long` OnlineID)
+
+[//]: # (        - `string` Title)
+
+[//]: # (        - `string` TitleUnicode)
+
+[//]: # (        - `string` Artist)
+
+[//]: # (        - `string` ArtistUnicode)
+
+[//]: # (        - `string` Source)
+
+[//]: # (        - `string` AudioFile)
+
+[//]: # (        - `string` BackgroundFile)
+
+[//]: # ()
+[//]: # ()
+[//]: # (- `string` type is formatted like)
+
+[//]: # (    - `unsigned byte` Length on `Binary1` &#40;Fine in 99% of cases&#41;)
+
+[//]: # (    - `unsigned int` Length on `Binary2`)
+
+[//]: # (    - `bytes` UTF-8 Data)
+
+[//]: # (    - if Length is zero it will just be `signed int 0`)
+
+[//]: # ()
+[//]: # (Example &#40;simplified&#41;)
+
+[//]: # ()
+[//]: # (```csharp)
+
+[//]: # (true                                                                // Mode)
+
+[//]: # (1                                                                   // BeatmapSet Count)
+
+[//]: # (-1                                                                  // OnlineID)
+
+[//]: # (2                                                                   // Files Count)
+
+[//]: # (// Index 0)
+
+[//]: # ("audio.mp3"                                                         // Filename)
+
+[//]: # ("47b895484e7751f3ab429694ff6dbf21e774ab023e4f6c5b481476f04ff22f0f"  // SHA256 Hash &#40;encoded as 32 bytes not string&#41;)
+
+[//]: # (// Index 1)
+
+[//]: # ("cYsmix - triangles &#40;peppy&#41; [peppy].osu")
+
+[//]: # ("a1556d0801b3a6b175dda32ef546f0ec812b400499f575c44fccbe9c67f9b1e5")
+
+[//]: # (1                                                                   // Beatmap Count)
+
+[//]: # (// Index 0)
+
+[//]: # ("27d9765612170a9517f0a5e8b4613f06"                                  // MD5Hash &#40;encoded as 16 bytes not string&#41;)
+
+[//]: # (0                                                                   // OnlineID)
+
+[//]: # ("triangles"                                                         // Title)
+
+[//]: # ("triangles"                                                         // TitleUnicode)
+
+[//]: # ("cYsmix"                                                            // Artist)
+
+[//]: # ("cYsmix"                                                            // ArtistUnicode)
+
+[//]: # (0                                                                   // Source)
+
+[//]: # ("audio.mp3"                                                         // AudioFile)
+
+[//]: # (0                                                                   // BackgroundFile)
+
+[//]: # (```)
 
 ## Danser
 

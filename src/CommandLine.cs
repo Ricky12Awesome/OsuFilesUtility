@@ -7,7 +7,7 @@ internal static class CommandLine
 {
     internal sealed class Args
     {
-        public const string DefaultOutPath = "./YOU-CAN-RENAME-THIS-AND-MOVE-THIS-ON-SAME-DRIVE";
+        public const string DefaultOutPath = "./songs";
 
         public required string LazerPath { get; init; }
         public required string? OutPath { get; init; }
