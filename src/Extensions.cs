@@ -21,38 +21,49 @@ public static class Extensions
 
     extension(Utf8JsonWriter writer)
     {
-        public void WriteIfNotNull(string name, string? value)
+        public void WriteIfNotNull(string name, string? value, bool writeAnyway = false)
         {
-            if (value is null)
+            if (string.IsNullOrEmpty(value) && !writeAnyway)
             {
                 return;
             }
 
-            writer.WritePropertyName(name);
-            writer.WriteStringValue(value.Length == 0 ? null : value);
+            writer.WriteString(name, value?.Length == 0 ? null : value);
         }
 
-        public void WriteIfNotNull(string name, long? value)
+        public void WriteIfNotNull(string name, long? value, bool writeAnyway = false)
         {
             if (value is not null)
             {
                 writer.WriteNumber(name, value.Value);
             }
+            else if (writeAnyway)
+            {
+                writer.WriteNull(name);
+            }
         }
 
-        public void WriteIfNotNull(string name, double? value)
+        public void WriteIfNotNull(string name, double? value, bool writeAnyway = false)
         {
             if (value is not null)
             {
                 writer.WriteNumber(name, value.Value);
             }
+            else if (writeAnyway)
+            {
+                writer.WriteNull(name);
+            }
         }
 
-        public void WriteIfNotNull(string name, DateTimeOffset? value)
+        public void WriteIfNotNull(string name, DateTimeOffset? value, bool writeAnyway = false)
         {
             if (value is not null)
             {
                 writer.WriteDateTime(name, value.Value);
+            }
+            else if (writeAnyway)
+            {
+                writer.WriteNull(name);
             }
         }
 
@@ -60,14 +71,6 @@ public static class Extensions
         {
             writer.WritePropertyName(name);
             writer.WriteStringValue(value);
-        }
-
-        public void FlushLine(Stream output)
-        {
-            writer.Flush();
-            output.WriteByte((byte)'\n');
-            output.Flush();
-            writer.Reset(output);
         }
 
         public void WriteFiles(IEnumerable<RealmNamedFileUsage> files)

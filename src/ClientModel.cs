@@ -85,15 +85,15 @@ public class BeatmapDifficulty : EmbeddedObject
 public class BeatmapMetadata : RealmObject
 {
     public string Title { get; private set; } = null!;
-    public string TitleUnicode { get; private set; } = null!;
+    public string? TitleUnicode { get; private set; } = null;
     public string Artist { get; private set; } = null!;
-    public string ArtistUnicode { get; private set; } = null!;
+    public string? ArtistUnicode { get; private set; } = null;
     public RealmUser Author { get; private set; } = null!;
-    public string Source { get; private set; } = null!;
-    public string Tags { get; private set; } = null!;
+    public string? Source { get; private set; } = null;
+    public string? Tags { get; private set; } = null;
     public long PreviewTime { get; private set; } = 0;
     public string AudioFile { get; private set; } = null!;
-    public string BackgroundFile { get; private set; } = null!;
+    public string? BackgroundFile { get; private set; } = null;
     public IList<string> UserTags { get; } = null!;
 }
 
@@ -152,7 +152,7 @@ public class RealmUser : RealmObject
 {
     [Indexed] public long OnlineID { get; private set; }
     public string Username { get; private set; } = null!;
-    public string? CountryCode { get; private set; } = null;
+    public string CountryCode { get; private set; } = null!;
 }
 
 [Preserve(AllMembers = true)]
